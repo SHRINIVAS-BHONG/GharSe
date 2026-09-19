@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, UploadFile, File, Form
 from bson import ObjectId
@@ -7,6 +7,7 @@ from app.middleware.auth import get_current_user, require_role
 from app.models.mongo_utils import serialize_doc, serialize_docs, parse_object_id
 from app.services.image_storage import save_image
 from app.utils.distance import haversine_km
+from app.utils.cache import cache
 
 router = APIRouter(prefix="/api/foods", tags=["Foods"])
 
@@ -22,7 +23,14 @@ async def list_foods(
     lat: Optional[float] = None,
     lng: Optional[float] = None,
     maxDistanceKm: Optional[float] = None,
+    page: int = 1,
+    limit: int = 50,
 ):
+    cache_key = f"foods_list:{mealType}:{dietaryType}:{pickup}:{delivery}:{maxPrice}:{minRating}:{sort}:{lat}:{lng}:{maxDistanceKm}:{page}:{limit}"
+    cached_result = await cache.get(cache_key)
+    if cached_result is not None:
+        return cached_result
+
     db = get_db()
     query = {"status": "active", "remainingQuantity": {"$gt": 0}}
 
@@ -37,14 +45,17 @@ async def list_foods(
     if maxPrice is not None:
         query["price"] = {"$lte": float(maxPrice)}
 
-    # Filter out past dates (show today and future dates)
-    now = datetime.now(timezone.utc)
-    start_of_today = datetime(now.year, now.month, now.day, 0, 0, 0, tzinfo=timezone.utc)
-    query["date"] = {"$gte": start_of_today}
+    # Filter out past dates (show today and future dates in IST)
+    ist_offset = timedelta(hours=5, minutes=30)
+    now_ist = datetime.now(timezone.utc) + ist_offset
+    start_of_today_ist = datetime(now_ist.year, now_ist.month, now_ist.day, 0, 0, 0)
+    start_of_today_utc = (start_of_today_ist - ist_offset).replace(tzinfo=timezone.utc)
+    query["date"] = {"$gte": start_of_today_utc}
+    query["isDeleted"] = {"$ne": True}
 
     # Fetch listings from DB
     cursor = db.foodlistings.find(query)
-    raw_listings = await cursor.to_list(length=500)
+    raw_listings = await cursor.to_list(length=300)
 
     # Collect seller IDs
     seller_ids = list({l["sellerId"] for l in raw_listings if "sellerId" in l})
@@ -107,7 +118,21 @@ async def list_foods(
     else:  # 'recent'
         listings.sort(key=lambda x: str(x.get("createdAt", "")), reverse=True)
 
-    return {"listings": listings}
+    # Pagination slice
+    total_count = len(listings)
+    limit = min(max(1, limit), 200)
+    skip = max(0, (page - 1) * limit)
+    paginated_listings = listings[skip : skip + limit]
+
+    result_payload = {
+        "listings": paginated_listings,
+        "total": total_count,
+        "page": page,
+        "limit": limit
+    }
+
+    await cache.set(cache_key, result_payload, ttl_seconds=30, tags=["foods"])
+    return result_payload
 
 @router.get("/mine", response_model=dict)
 async def my_listings(current_user: dict = Depends(require_role("seller"))):
@@ -116,15 +141,20 @@ async def my_listings(current_user: dict = Depends(require_role("seller"))):
     if not seller_profile:
         raise HTTPException(status_code=403, detail="Seller profile not found.")
 
-    cursor = db.foodlistings.find({"sellerId": seller_profile["_id"]}).sort("createdAt", -1)
+    cursor = db.foodlistings.find({"sellerId": seller_profile["_id"], "isDeleted": {"$ne": True}}).sort("createdAt", -1)
     listings = await cursor.to_list(length=200)
     return {"listings": serialize_docs(listings)}
 
 @router.get("/{id}", response_model=dict)
 async def get_food_by_id(id: str):
+    cache_key = f"food_detail:{id}"
+    cached_food = await cache.get(cache_key)
+    if cached_food is not None:
+        return cached_food
+
     listing_id = parse_object_id(id)
     db = get_db()
-    listing = await db.foodlistings.find_one({"_id": listing_id})
+    listing = await db.foodlistings.find_one({"_id": listing_id, "isDeleted": {"$ne": True}})
     if not listing:
         raise HTTPException(status_code=404, detail="This food listing is no longer available.")
 
@@ -149,10 +179,13 @@ async def get_food_by_id(id: str):
     }).limit(6)
     other_listings = await other_cursor.to_list(length=6)
 
-    return {
+    response_data = {
         "listing": serialize_doc(listing),
         "otherListings": serialize_docs(other_listings)
     }
+
+    await cache.set(cache_key, response_data, ttl_seconds=60, tags=[f"food:{id}", "foods"])
+    return response_data
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_food(
@@ -273,6 +306,9 @@ async def create_food(
     result = await db.foodlistings.insert_one(listing_doc)
     listing_doc["_id"] = result.inserted_id
 
+    # Invalidate cache
+    await cache.invalidate_tags(["foods", "admin_stats", f"seller:{seller_profile['_id']}"])
+
     return {
         "listing": serialize_doc(listing_doc),
         "message": "Your food is now live on GharSe."
@@ -287,7 +323,7 @@ async def update_food(
     listing_id = parse_object_id(id)
     db = get_db()
     seller_profile = await db.sellerprofiles.find_one({"userId": ObjectId(current_user["_id"])})
-    listing = await db.foodlistings.find_one({"_id": listing_id})
+    listing = await db.foodlistings.find_one({"_id": listing_id, "isDeleted": {"$ne": True}})
 
     if not listing:
         raise HTTPException(status_code=404, detail="Listing not found.")
@@ -343,6 +379,9 @@ async def update_food(
         return_document=True
     )
 
+    # Invalidate cache
+    await cache.invalidate_tags(["foods", "admin_stats", f"food:{id}", f"seller:{seller_profile['_id']}"])
+
     return {"listing": serialize_doc(updated_listing)}
 
 @router.delete("/{id}")
@@ -360,5 +399,12 @@ async def delete_food(
     if str(listing.get("sellerId")) != str(seller_profile["_id"]):
         raise HTTPException(status_code=403, detail="You can only delete your own listings.")
 
-    await db.foodlistings.delete_one({"_id": listing_id})
+    await db.foodlistings.update_one(
+        {"_id": listing_id},
+        {"$set": {"isDeleted": True, "status": "archived", "updatedAt": datetime.now(timezone.utc)}}
+    )
+
+    # Invalidate cache
+    await cache.invalidate_tags(["foods", "admin_stats", f"food:{id}", f"seller:{seller_profile['_id']}"])
+
     return {"message": "Listing removed."}

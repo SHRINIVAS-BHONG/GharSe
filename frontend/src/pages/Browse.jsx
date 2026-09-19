@@ -10,6 +10,17 @@ export default function Browse() {
   const [filters, setFilters] = useState({
     mealType: '', dietaryType: '', pickup: false, delivery: false, maxPrice: '', sort: 'recent',
   });
+  const [browserLoc, setBrowserLoc] = useState(null);
+
+  useEffect(() => {
+    if (!user?.approximateLocation && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setBrowserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => console.warn("Geolocation access denied or failed in browse."),
+        { timeout: 10000 }
+      );
+    }
+  }, [user]);
 
   useEffect(() => {
     let cancelled = false;
@@ -20,9 +31,10 @@ export default function Browse() {
     if (filters.pickup) params.pickup = 'true';
     if (filters.delivery) params.delivery = 'true';
     if (filters.maxPrice) params.maxPrice = filters.maxPrice;
-    if (user?.approximateLocation?.lat) {
-      params.lat = user.approximateLocation.lat;
-      params.lng = user.approximateLocation.lng;
+    const loc = user?.approximateLocation || browserLoc;
+    if (loc?.lat) {
+      params.lat = loc.lat;
+      params.lng = loc.lng;
     }
 
     api.get('/foods', { params }).then(({ data }) => {
@@ -33,7 +45,7 @@ export default function Browse() {
     }).catch(() => setLoading(false));
 
     return () => { cancelled = true; };
-  }, [filters, user]);
+  }, [filters, user, browserLoc]);
 
   function update(field, value) {
     setFilters((f) => ({ ...f, [field]: value }));

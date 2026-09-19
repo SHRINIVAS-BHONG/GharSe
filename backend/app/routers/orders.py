@@ -2,12 +2,14 @@ from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from bson import ObjectId
-from app.database import get_db
+from app.database import get_db, get_client
 from app.config import settings
 from app.schemas.order import OrderCreateRequest, OrderStatusUpdateRequest
 from app.middleware.auth import get_current_user
 from app.models.mongo_utils import serialize_doc, serialize_docs, parse_object_id
 from app.utils.order_number import generate_order_number
+
+from app.utils.cache import cache
 
 router = APIRouter(prefix="/api/orders", tags=["Orders"])
 
@@ -23,6 +25,10 @@ VALID_TRANSITIONS = {
 }
 
 async def get_commission_percent() -> float:
+    cached_val = await cache.get("platform_commission")
+    if cached_val is not None:
+        return float(cached_val)
+
     db = get_db()
     config = await db.platformconfigs.find_one({"key": "singleton"})
     if not config:
@@ -33,8 +39,11 @@ async def get_commission_percent() -> float:
             "createdAt": datetime.now(timezone.utc),
             "updatedAt": datetime.now(timezone.utc)
         })
+        await cache.set("platform_commission", commission, ttl_seconds=300, tags=["platform_config"])
         return commission
-    return float(config.get("commissionPercent", settings.DEFAULT_COMMISSION_PERCENT))
+    commission = float(config.get("commissionPercent", settings.DEFAULT_COMMISSION_PERCENT))
+    await cache.set("platform_commission", commission, ttl_seconds=300, tags=["platform_config"])
+    return commission
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_order(
@@ -52,51 +61,24 @@ async def create_order(
         raise HTTPException(status_code=400, detail="Invalid fulfillment type.")
 
     db = get_db()
+    client = get_client()
+    
     listing = await db.foodlistings.find_one({"_id": listing_id})
     if not listing or listing.get("status") != "active":
         raise HTTPException(status_code=404, detail="This food is no longer available.")
+
+    seller_profile = await db.sellerprofiles.find_one({"_id": listing["sellerId"]})
+    if not seller_profile:
+        raise HTTPException(status_code=404, detail="Seller profile not found.")
+
+    if str(seller_profile["userId"]) == str(current_user["_id"]):
+        raise HTTPException(status_code=403, detail="You cannot order your own food.")
 
     if fulfillment_type == "pickup" and not listing.get("pickupAvailable"):
         raise HTTPException(status_code=400, detail="Pickup is not available for this listing.")
 
     if fulfillment_type == "delivery" and not listing.get("deliveryAvailable"):
         raise HTTPException(status_code=400, detail="Delivery is not available for this listing.")
-
-    # Atomic decrement: only succeeds if remainingQuantity >= qty at that exact moment
-    updated_listing = await db.foodlistings.find_one_and_update(
-        {
-            "_id": listing_id,
-            "remainingQuantity": {"$gte": qty},
-            "status": "active"
-        },
-        [
-            {
-                "$set": {
-                    "remainingQuantity": {"$subtract": ["$remainingQuantity", qty]}
-                }
-            },
-            {
-                "$set": {
-                    "status": {
-                        "$cond": [{"$lte": ["$remainingQuantity", 0]}, "soldout", "active"]
-                    }
-                }
-            }
-        ],
-        return_document=True
-    )
-
-    if not updated_listing:
-        fresh = await db.foodlistings.find_one({"_id": listing_id})
-        available = fresh.get("remainingQuantity", 0) if fresh else 0
-        raise HTTPException(
-            status_code=409,
-            detail=f"Only {available} portion{'s' if available != 1 else ''} remaining."
-        )
-
-    seller_profile = await db.sellerprofiles.find_one({"_id": listing["sellerId"]})
-    if not seller_profile:
-        raise HTTPException(status_code=404, detail="Seller profile not found.")
 
     commission_percent = await get_commission_percent()
     subtotal = float(listing.get("price", 0)) * qty
@@ -137,14 +119,56 @@ async def create_order(
         "updatedAt": now
     }
 
-    result = await db.orders.insert_one(order_doc)
-    order_doc["_id"] = result.inserted_id
+    try:
+        async with await client.start_session() as session:
+            async with session.start_transaction():
+                updated_listing = await db.foodlistings.find_one_and_update(
+                    {
+                        "_id": listing_id,
+                        "remainingQuantity": {"$gte": qty},
+                        "status": "active"
+                    },
+                    [
+                        {
+                            "$set": {
+                                "remainingQuantity": {"$subtract": ["$remainingQuantity", qty]}
+                            }
+                        },
+                        {
+                            "$set": {
+                                "status": {
+                                    "$cond": [{"$lte": ["$remainingQuantity", 0]}, "soldout", "active"]
+                                }
+                            }
+                        }
+                    ],
+                    return_document=True,
+                    session=session
+                )
+
+                if not updated_listing:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Not enough portions remaining."
+                    )
+
+                result = await db.orders.insert_one(order_doc, session=session)
+                order_doc["_id"] = result.inserted_id
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail="Failed to process order.")
+
+    # Invalidate cache tags
+    await cache.invalidate_tags(["orders", "admin_stats", "foods", f"seller:{seller_profile['_id']}"])
 
     return {"order": serialize_doc(order_doc)}
 
 @router.get("", response_model=dict)
 async def list_orders(
     status: Optional[str] = None,
+    page: int = 1,
+    limit: int = 50,
     current_user: dict = Depends(get_current_user)
 ):
     db = get_db()
@@ -161,17 +185,36 @@ async def list_orders(
     if status:
         filter_query["status"] = status
 
-    cursor = db.orders.find(filter_query).sort("createdAt", -1)
-    raw_orders = await cursor.to_list(length=200)
+    limit = min(max(1, limit), 200)
+    skip = max(0, (page - 1) * limit)
 
-    # Populate customerId and sellerId
+    cursor = db.orders.find(filter_query).sort("createdAt", -1).skip(skip)
+    raw_orders = await cursor.to_list(length=limit)
+
+    if not raw_orders:
+        return {"orders": [], "page": page, "limit": limit}
+
+    # Batch lookups to completely eliminate N+1 queries
+    customer_ids = list({o["customerId"] for o in raw_orders if o.get("customerId")})
+    seller_ids = list({o["sellerId"] for o in raw_orders if o.get("sellerId")})
+
+    customer_docs = await db.users.find({"_id": {"$in": customer_ids}}).to_list(length=len(customer_ids)) if customer_ids else []
+    customer_map = {str(c["_id"]): c for c in customer_docs}
+
+    seller_docs = await db.sellerprofiles.find({"_id": {"$in": seller_ids}}).to_list(length=len(seller_ids)) if seller_ids else []
+    seller_map = {str(s["_id"]): s for s in seller_docs}
+
+    seller_user_ids = list({s["userId"] for s in seller_docs if s.get("userId")})
+    seller_user_docs = await db.users.find({"_id": {"$in": seller_user_ids}}).to_list(length=len(seller_user_ids)) if seller_user_ids else []
+    seller_user_map = {str(u["_id"]): u for u in seller_user_docs}
+
     populated_orders = []
     for order in raw_orders:
-        customer_doc = await db.users.find_one({"_id": order.get("customerId")})
-        seller_doc = await db.sellerprofiles.find_one({"_id": order.get("sellerId")})
-        seller_user_doc = None
-        if seller_doc:
-            seller_user_doc = await db.users.find_one({"_id": seller_doc.get("userId")})
+        c_id = str(order.get("customerId"))
+        s_id = str(order.get("sellerId"))
+
+        customer_doc = customer_map.get(c_id)
+        seller_doc = seller_map.get(s_id)
 
         order_copy = dict(order)
         if customer_doc:
@@ -183,6 +226,8 @@ async def list_orders(
             }
         if seller_doc:
             seller_data = dict(seller_doc)
+            su_id = str(seller_doc.get("userId"))
+            seller_user_doc = seller_user_map.get(su_id)
             if seller_user_doc:
                 seller_data["userId"] = {
                     "_id": str(seller_user_doc["_id"]),
@@ -193,7 +238,7 @@ async def list_orders(
 
         populated_orders.append(serialize_doc(order_copy))
 
-    return {"orders": populated_orders}
+    return {"orders": populated_orders, "page": page, "limit": limit}
 
 @router.get("/{id}", response_model=dict)
 async def get_order_by_id(
@@ -258,10 +303,18 @@ async def update_order_status(
         raise HTTPException(status_code=404, detail="Order not found.")
 
     seller_profile = await db.sellerprofiles.find_one({"userId": ObjectId(current_user["_id"])})
-    if not seller_profile or str(order.get("sellerId")) != str(seller_profile["_id"]):
-        raise HTTPException(status_code=403, detail="You can only update your own orders.")
-
+    is_seller_owner = seller_profile and str(order.get("sellerId")) == str(seller_profile["_id"])
+    is_customer_owner = str(order.get("customerId")) == str(current_user["_id"])
+    
     current_status = order.get("status")
+
+    if is_customer_owner and new_status == "cancelled" and current_status == "placed":
+        pass # Allow customer to cancel
+    elif is_seller_owner:
+        pass # Seller can update statuses
+    else:
+        raise HTTPException(status_code=403, detail="You do not have permission to update this order's status.")
+
     allowed_next = VALID_TRANSITIONS.get(current_status, [])
     if new_status not in allowed_next:
         raise HTTPException(
@@ -296,15 +349,21 @@ async def update_order_status(
     if new_status == "completed":
         if order.get("paymentMethod") == "cash":
             set_dict["paymentStatus"] = "cash_on_fulfillment"
-        await db.sellerprofiles.update_one(
-            {"_id": seller_profile["_id"]},
-            {"$inc": {"totalOrders": 1}, "$set": {"updatedAt": now}}
-        )
+        elif order.get("paymentMethod") == "upi":
+            set_dict["paymentStatus"] = "paid"
+        if seller_profile:
+            await db.sellerprofiles.update_one(
+                {"_id": seller_profile["_id"]},
+                {"$inc": {"totalOrders": 1}, "$set": {"updatedAt": now}}
+            )
 
     updated_order = await db.orders.find_one_and_update(
         {"_id": order_id},
         {"$set": set_dict},
         return_document=True
     )
+
+    # Invalidate caches
+    await cache.invalidate_tags(["orders", "admin_stats", "foods", f"seller:{seller_profile['_id']}"])
 
     return {"order": serialize_doc(updated_order)}

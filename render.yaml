@@ -1,0 +1,58 @@
+services:
+  # ------------------------------------
+  # 1. Backend (FastAPI Web Service)
+  # ------------------------------------
+  - type: web
+    name: gharse-backend
+    env: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: MONGO_URI
+        sync: false # You MUST set this manually in the Render Dashboard (from MongoDB Atlas)
+      - key: JWT_SECRET
+        generateValue: true
+      - key: REDIS_URI
+        fromService:
+          type: redis
+          name: gharse-redis
+          property: connectionString
+      - key: CLIENT_URL
+        fromService:
+          type: web
+          name: gharse-frontend
+          property: url
+      - key: PYTHON_VERSION
+        value: 3.11.0 # Ensures compatibility with your Dockerfile
+
+  # ------------------------------------
+  # 2. Frontend (React Static Site)
+  # ------------------------------------
+  - type: web
+    name: gharse-frontend
+    env: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html # Enables Single Page Application routing
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: gharse-backend
+          property: url
+          # Render automatically appends /api to the backend URL for this variable
+          # wait, no we need to append /api. We can't do string interpolation easily in render.yaml here.
+          # Actually, if VITE_API_URL is just the base URL, we might need to modify it.
+
+  # ------------------------------------
+  # 3. Redis (Managed Redis Instance)
+  # ------------------------------------
+  - type: redis
+    name: gharse-redis
+    ipAllowList: [] # only allow internal connections
+    plan: free # Uses Render's free Redis tier

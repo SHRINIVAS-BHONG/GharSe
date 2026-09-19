@@ -9,3 +9,5 @@ uploads/*
 htmlcov/
 .venv
 venv/
+
+data/

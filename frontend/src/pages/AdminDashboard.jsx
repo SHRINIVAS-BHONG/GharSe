@@ -111,8 +111,12 @@ function Listings() {
   useEffect(() => { load(); }, []);
 
   async function setStatus(id, status) {
-    await api.put(`/admin/listings/${id}/status`, { status });
-    load();
+    try {
+      await api.put(`/admin/listings/${id}/status`, { status });
+      load();
+    } catch (err) {
+      alert(apiErrorMessage(err));
+    }
   }
 
   return (
@@ -167,9 +171,13 @@ function Complaints() {
   function load() { api.get('/admin/complaints').then(({ data }) => setComplaints(data.complaints)); }
   useEffect(() => { load(); }, []);
 
-  async function updateComplaint(id, status) {
-    await api.put(`/admin/complaints/${id}`, { status, resolution: resolutionDrafts[id] });
-    load();
+  async function updateComplaint(c, status) {
+    try {
+      await api.put(`/admin/complaints/${c._id}`, { status, resolution: resolutionDrafts[c._id] || c.resolution || '' });
+      load();
+    } catch (err) {
+      alert(apiErrorMessage(err));
+    }
   }
 
   return (
@@ -192,8 +200,8 @@ function Complaints() {
             onChange={(e) => setResolutionDrafts((d) => ({ ...d, [c._id]: e.target.value }))}
           />
           <div className="flex gap-2">
-            <button onClick={() => updateComplaint(c._id, 'investigating')} className="px-3 py-1 rounded-full border border-marigold-light/60 text-sm">Investigating</button>
-            <button onClick={() => updateComplaint(c._id, 'resolved')} className="px-3 py-1 rounded-full bg-tulsi text-ivory text-sm">Resolve</button>
+            <button onClick={() => updateComplaint(c, 'investigating')} className="px-3 py-1 rounded-full border border-marigold-light/60 text-sm">Investigating</button>
+            <button onClick={() => updateComplaint(c, 'resolved')} className="px-3 py-1 rounded-full bg-tulsi text-ivory text-sm">Resolve</button>
           </div>
         </div>
       ))}
@@ -208,9 +216,13 @@ function Settings() {
   useEffect(() => { api.get('/admin/commission').then(({ data }) => setCommission(String(data.commissionPercent))); }, []);
 
   async function save() {
-    await api.put('/admin/commission', { commissionPercent: Number(commission) });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    try {
+      await api.put('/admin/commission', { commissionPercent: Number(commission) });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      alert(apiErrorMessage(err));
+    }
   }
 
   return (

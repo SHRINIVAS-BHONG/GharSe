@@ -22,6 +22,19 @@ export default function SignupSeller() {
     e.preventDefault();
     setError('');
     setLoading(true);
+
+    let approximateLocation = null;
+    if (navigator.geolocation) {
+      try {
+        const pos = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+        });
+        approximateLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      } catch (err) {
+        console.warn('Geolocation failed or denied', err);
+      }
+    }
+
     try {
       const { data } = await api.post('/auth/register', {
         name: form.name,
@@ -35,6 +48,7 @@ export default function SignupSeller() {
         deliveryAvailable: form.deliveryAvailable,
         categories: form.categories ? form.categories.split(',').map((s) => s.trim()) : [],
         bio: form.bio,
+        approximateLocation
       });
       login(data.token, data.user, data.sellerProfile);
       navigate('/seller/dashboard');

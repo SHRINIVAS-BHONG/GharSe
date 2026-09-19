@@ -68,7 +68,7 @@ export default function FoodDetail() {
           {listing.image ? (
             <img src={imageUrl(listing.image)} alt={listing.name} className="w-full h-full object-cover" />
           ) : (
-            <span className="font-display text-6xl text-marigold-dark/60">{listing.name[0]}</span>
+            <span className="font-display text-6xl text-marigold-dark/60">{listing.name?.[0] || ''}</span>
           )}
         </div>
         <h1 className="font-display text-3xl">{listing.name}</h1>

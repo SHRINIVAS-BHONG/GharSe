@@ -11,5 +11,7 @@ import uvicorn
 from app.config import settings
 
 if __name__ == "__main__":
-    print(f"Starting GharSe FastAPI backend on port {settings.PORT}...")
-    uvicorn.run("app.main:app", host="0.0.0.0", port=settings.PORT, reload=True)
+    is_dev = os.getenv("ENV", "development") == "development"
+    workers = 1 if is_dev else settings.WORKERS
+    print(f"Starting GharSe FastAPI backend on port {settings.PORT} (workers={workers}, reload={is_dev})...")
+    uvicorn.run("app.main:app", host="0.0.0.0", port=settings.PORT, reload=is_dev, workers=workers if not is_dev else None)

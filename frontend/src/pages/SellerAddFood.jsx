@@ -30,7 +30,7 @@ export default function SellerAddFood() {
       Object.entries(form).forEach(([k, v]) => fd.append(k, v));
       if (imageFile) fd.append('image', imageFile);
 
-      const { data } = await api.post('/foods', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const { data } = await api.post('/foods', fd);
       setSuccess(data.message);
       setTimeout(() => navigate('/seller/dashboard'), 900);
     } catch (err) {

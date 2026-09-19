@@ -5,6 +5,7 @@ from app.database import get_db
 from app.middleware.auth import get_current_user, require_role
 from app.models.mongo_utils import serialize_doc, serialize_docs, parse_object_id
 from app.services.image_storage import save_image
+from app.utils.cache import cache
 
 router = APIRouter(prefix="/api/sellers", tags=["Sellers"])
 
@@ -21,13 +22,31 @@ async def get_seller_dashboard(current_user: dict = Depends(require_role("seller
     orders_cursor = db.orders.find({"sellerId": seller["_id"]}).sort("createdAt", -1).limit(50)
     orders = await orders_cursor.to_list(length=50)
 
-    completed_orders = [o for o in orders if o.get("status") == "completed"]
-    total_earnings = sum(o.get("sellerEarnings", 0) for o in completed_orders)
-    total_commission_paid = sum(o.get("platformCommissionAmount", 0) for o in completed_orders)
+    pipeline = [
+        {"$match": {"sellerId": seller["_id"], "status": "completed"}},
+        {"$group": {
+            "_id": None,
+            "totalEarnings": {"$sum": "$sellerEarnings"},
+            "totalCommissionPaid": {"$sum": "$platformCommissionAmount"}
+        }}
+    ]
+    agg_cursor = db.orders.aggregate(pipeline)
+    agg_result = await agg_cursor.to_list(length=1)
+    
+    if agg_result:
+        total_earnings = agg_result[0].get("totalEarnings", 0)
+        total_commission_paid = agg_result[0].get("totalCommissionPaid", 0)
+    else:
+        total_earnings = 0
+        total_commission_paid = 0
 
     active_listings_count = sum(1 for l in listings if l.get("status") == "active")
     sold_out_listings_count = sum(1 for l in listings if l.get("status") == "soldout")
-    pending_orders_count = sum(1 for o in orders if o.get("status") in ["placed", "accepted", "preparing"])
+    
+    pending_orders_count = await db.orders.count_documents({
+        "sellerId": seller["_id"],
+        "status": {"$in": ["placed", "accepted", "preparing"]}
+    })
 
     return {
         "seller": serialize_doc(seller),
@@ -44,6 +63,11 @@ async def get_seller_dashboard(current_user: dict = Depends(require_role("seller
 
 @router.get("/{id}", response_model=dict)
 async def get_seller_profile(id: str):
+    cache_key = f"seller_profile:{id}"
+    cached_data = await cache.get(cache_key)
+    if cached_data is not None:
+        return cached_data
+
     seller_id = parse_object_id(id)
     db = get_db()
     seller = await db.sellerprofiles.find_one({"_id": seller_id})
@@ -68,19 +92,29 @@ async def get_seller_profile(id: str):
 
     reviews_cursor = db.reviews.find({"sellerId": seller["_id"]}).sort("createdAt", -1).limit(20)
     raw_reviews = await reviews_cursor.to_list(length=20)
+
+    # Batch customer lookup to eliminate N+1 queries
+    customer_ids = list({r["customerId"] for r in raw_reviews if r.get("customerId")})
+    customer_docs = await db.users.find({"_id": {"$in": customer_ids}}).to_list(length=len(customer_ids)) if customer_ids else []
+    customer_map = {str(c["_id"]): c for c in customer_docs}
+
     reviews = []
     for r in raw_reviews:
-        cust = await db.users.find_one({"_id": r.get("customerId")})
+        c_id = str(r.get("customerId"))
+        cust = customer_map.get(c_id)
         r_copy = dict(r)
         if cust:
             r_copy["customerId"] = {"_id": str(cust["_id"]), "name": cust.get("name")}
         reviews.append(serialize_doc(r_copy))
 
-    return {
+    response_data = {
         "seller": serialize_doc(seller_copy),
         "menu": serialize_docs(menu),
         "reviews": reviews
     }
+
+    await cache.set(cache_key, response_data, ttl_seconds=60, tags=[f"seller:{id}", "sellers"])
+    return response_data
 
 @router.put("/profile", response_model=dict)
 async def update_seller_profile(
@@ -130,6 +164,9 @@ async def update_seller_profile(
         return_document=True
     )
 
+    # Invalidate cache
+    await cache.invalidate_tags([f"seller:{seller['_id']}", "sellers", "foods"])
+
     return {"seller": serialize_doc(updated_seller)}
 
 @router.post("/verification", response_model=dict)
@@ -159,6 +196,9 @@ async def request_verification(
         },
         return_document=True
     )
+
+    # Invalidate cache
+    await cache.invalidate_tags([f"seller:{seller['_id']}", "sellers", "admin_stats"])
 
     return {
         "seller": serialize_doc(updated_seller),

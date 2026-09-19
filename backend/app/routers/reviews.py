@@ -5,6 +5,7 @@ from app.database import get_db
 from app.schemas.review import ReviewCreateRequest
 from app.middleware.auth import get_current_user
 from app.models.mongo_utils import serialize_doc, serialize_docs, parse_object_id
+from app.utils.cache import cache
 
 router = APIRouter(tags=["Reviews"])
 
@@ -50,41 +51,56 @@ async def create_review(
     result = await db.reviews.insert_one(review_doc)
     review_doc["_id"] = result.inserted_id
 
-    # Recalculate seller rating
-    seller = await db.sellerprofiles.find_one({"_id": order["sellerId"]})
-    if seller:
-        old_count = seller.get("ratingCount", 0)
-        old_rating = seller.get("rating", 0.0)
-        new_count = old_count + 1
-        new_avg = (old_rating * old_count + rating) / new_count
-        rounded_rating = round(new_avg, 1)
-
-        await db.sellerprofiles.update_one(
-            {"_id": seller["_id"]},
+    # Atomic update for seller rating to prevent race conditions and math drift
+    await db.sellerprofiles.update_one(
+        {"_id": order["sellerId"]},
+        [
             {
                 "$set": {
-                    "rating": rounded_rating,
-                    "ratingCount": new_count,
+                    "ratingTotal": {"$add": [{"$ifNull": ["$ratingTotal", 0]}, rating]},
+                    "ratingCount": {"$add": [{"$ifNull": ["$ratingCount", 0]}, 1]},
                     "updatedAt": now
                 }
+            },
+            {
+                "$set": {
+                    "rating": {"$round": [{"$divide": ["$ratingTotal", "$ratingCount"]}, 1]}
+                }
             }
-        )
+        ]
+    )
+
+    # Invalidate caches
+    await cache.invalidate_tags([f"seller:{order['sellerId']}", f"reviews:{order['sellerId']}", "sellers", "admin_stats"])
 
     return {"review": serialize_doc(review_doc)}
 
 @router.get("/api/sellers/{id}/reviews", response_model=dict)
 async def get_seller_reviews(id: str):
+    cache_key = f"seller_reviews:{id}"
+    cached_data = await cache.get(cache_key)
+    if cached_data is not None:
+        return cached_data
+
     seller_id = parse_object_id(id)
     db = get_db()
     cursor = db.reviews.find({"sellerId": seller_id}).sort("createdAt", -1)
     raw_reviews = await cursor.to_list(length=100)
 
+    # Batch customer lookup to eliminate N+1 queries
+    customer_ids = list({r["customerId"] for r in raw_reviews if r.get("customerId")})
+    customer_docs = await db.users.find({"_id": {"$in": customer_ids}}).to_list(length=len(customer_ids)) if customer_ids else []
+    customer_map = {str(c["_id"]): c for c in customer_docs}
+
     reviews = []
     for r in raw_reviews:
-        cust = await db.users.find_one({"_id": r.get("customerId")})
+        c_id = str(r.get("customerId"))
+        cust = customer_map.get(c_id)
         r_copy = dict(r)
         if cust:
             r_copy["customerId"] = {"_id": str(cust["_id"]), "name": cust.get("name")}
         reviews.append(serialize_doc(r_copy))
 
-    return {"reviews": reviews}
+    response_data = {"reviews": reviews}
+    await cache.set(cache_key, response_data, ttl_seconds=60, tags=[f"reviews:{id}", f"seller:{id}"])
+    return response_data

@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const rawApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl.replace(/\/$/, '')}/api`;
 
 export const api = axios.create({ baseURL: API_BASE_URL });
 
@@ -12,7 +13,16 @@ api.interceptors.request.use((config) => {
 
 // Surfaces a friendly message string from any API error.
 export function apiErrorMessage(err) {
-  return err?.response?.data?.message || 'Something went wrong. Please try again.';
+  if (!err?.response) {
+    return 'Cannot connect to backend server. Make sure the server is running.';
+  }
+  return (
+    err.response.data?.detail ||
+    err.response.data?.message ||
+    (err.response.status >= 500
+      ? 'Database connection error. Please make sure MongoDB is running.'
+      : 'Something went wrong. Please try again.')
+  );
 }
 
 export const UPLOADS_BASE_URL = API_BASE_URL.replace(/\/api$/, '');

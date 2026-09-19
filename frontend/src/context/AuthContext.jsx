@@ -18,9 +18,11 @@ export function AuthProvider({ children }) {
       const { data } = await api.get('/auth/me');
       setUser(data.user);
       setSellerProfile(data.sellerProfile || null);
-    } catch {
-      localStorage.removeItem('gharse_token');
-      setUser(null);
+    } catch (err) {
+      if (err?.response?.status === 401) {
+        localStorage.removeItem('gharse_token');
+        setUser(null);
+      }
     } finally {
       setLoading(false);
     }

@@ -16,7 +16,7 @@ from app.middleware.error_handlers import (
     duplicate_key_exception_handler,
     generic_exception_handler
 )
-from app.routers import auth, foods, orders, sellers, reviews, complaints, admin
+from app.routers import auth, foods, orders, sellers, reviews, complaints, admin, waitlist
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -42,14 +42,19 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+import time
+from fastapi.middleware.gzip import GZipMiddleware
+
 # CORS Middleware
 origins = [
     settings.CLIENT_URL,
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "http://localhost:3000",
-    "*"
+    "http://localhost:3000"
 ]
+
+# GZip Compression for payloads > 500 bytes (saves 70-80% payload bandwidth)
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 app.add_middleware(
     CORSMiddleware,
@@ -58,6 +63,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Process Time & Latency Profiling Middleware
+@app.middleware("http")
+async def add_process_time_header(request, call_next):
+    start_time = time.perf_counter()
+    response = await call_next(request)
+    process_time = (time.perf_counter() - start_time) * 1000.0
+    response.headers["X-Process-Time"] = f"{process_time:.2f}ms"
+    return response
 
 # Global Exception Handlers
 app.add_exception_handler(HTTPException, http_exception_handler)
@@ -83,6 +97,7 @@ app.include_router(sellers.router)
 app.include_router(reviews.router)
 app.include_router(complaints.router)
 app.include_router(admin.router)
+app.include_router(waitlist.router)
 
 if __name__ == "__main__":
     import uvicorn

@@ -15,6 +15,7 @@ export default function OrderTracking() {
   const [complaintCategory, setComplaintCategory] = useState('food_quality');
   const [complaintDesc, setComplaintDesc] = useState('');
   const [complaintSubmitted, setComplaintSubmitted] = useState(false);
+  const [complaintError, setComplaintError] = useState('');
 
   function load() {
     api.get(`/orders/${id}`).then(({ data }) => setOrder(data.order)).catch((err) => setError(apiErrorMessage(err)));
@@ -38,12 +39,13 @@ export default function OrderTracking() {
 
   async function submitComplaint(e) {
     e.preventDefault();
+    setComplaintError('');
     try {
       await api.post('/complaints', { orderId: order._id, category: complaintCategory, description: complaintDesc });
       setComplaintSubmitted(true);
       setComplaintOpen(false);
     } catch (err) {
-      setReviewError(apiErrorMessage(err));
+      setComplaintError(apiErrorMessage(err));
     }
   }
 
@@ -102,12 +104,13 @@ export default function OrderTracking() {
       {['completed', 'rejected'].includes(order.status) && !complaintSubmitted && (
         <div className="mt-6">
           {!complaintOpen ? (
-            <button onClick={() => setComplaintOpen(true)} className="text-sm text-clay underline">
+            <button onClick={() => setComplaintOpen(true)} className="text-marigold-dark text-sm underline">
               Report an issue with this order
             </button>
           ) : (
-            <form onSubmit={submitComplaint} className="bg-white rounded-card border border-marigold-light/50 p-5">
-              <h2 className="font-medium mb-3">Report an issue</h2>
+            <form onSubmit={submitComplaint} className="mt-4 border-t border-marigold-light/50 pt-4">
+              {complaintError && <p className="text-red-600 text-sm mb-2">{complaintError}</p>}
+              <label className="block text-sm text-clay/70 mb-1">What went wrong?</label>
               <select value={complaintCategory} onChange={(e) => setComplaintCategory(e.target.value)} className="w-full border border-marigold-light/60 rounded-lg px-3 py-2 mb-3">
                 <option value="food_quality">Food quality</option>
                 <option value="missing_item">Missing item</option>
