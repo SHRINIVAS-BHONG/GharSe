@@ -19,10 +19,7 @@ services:
           name: gharse-redis
           property: connectionString
       - key: CLIENT_URL
-        fromService:
-          type: web
-          name: gharse-frontend
-          property: url
+        sync: false # Set this in the Render Dashboard once the frontend URL is known
       - key: PYTHON_VERSION
         value: 3.11.0 # Ensures compatibility with your Dockerfile
 
@@ -41,13 +38,7 @@ services:
         destination: /index.html # Enables Single Page Application routing
     envVars:
       - key: VITE_API_URL
-        fromService:
-          type: web
-          name: gharse-backend
-          property: url
-          # Render automatically appends /api to the backend URL for this variable
-          # wait, no we need to append /api. We can't do string interpolation easily in render.yaml here.
-          # Actually, if VITE_API_URL is just the base URL, we might need to modify it.
+        sync: false # Set this in the Render Dashboard once the backend URL is known
 
   # ------------------------------------
   # 3. Redis (Managed Redis Instance)
