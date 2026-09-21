@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     # Worker Concurrency Settings
     WORKERS: int = 2
 
+    # SMTP Settings (Gmail)
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+
     class Config:
         env_file = ".env"
         extra = "allow"

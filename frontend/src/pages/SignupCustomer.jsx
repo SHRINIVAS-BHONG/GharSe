@@ -41,8 +41,7 @@ export default function SignupCustomer() {
         foodPreferences: form.foodPreferences ? form.foodPreferences.split(',').map((s) => s.trim()) : [],
         approximateLocation
       });
-      login(data.token, data.user, data.sellerProfile);
-      navigate('/browse');
+      navigate(`/verify-email?email=${encodeURIComponent(data.email || form.email)}`);
     } catch (err) {
       setError(apiErrorMessage(err));
     } finally {

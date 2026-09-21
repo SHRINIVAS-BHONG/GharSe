@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 
 export default function SignupSeller() {
   const [form, setForm] = useState({
-    name: '', email: '', phone: '', password: '', locality: '',
+    name: '', email: '', password: '', locality: '',
     deliveryRadiusKm: '2', pickupAvailable: true, deliveryAvailable: false,
     categories: '', bio: '',
   });
@@ -39,7 +39,6 @@ export default function SignupSeller() {
       const { data } = await api.post('/auth/register', {
         name: form.name,
         email: form.email,
-        phone: form.phone,
         password: form.password,
         role: 'seller',
         locality: form.locality,
@@ -50,8 +49,7 @@ export default function SignupSeller() {
         bio: form.bio,
         approximateLocation
       });
-      login(data.token, data.user, data.sellerProfile);
-      navigate('/seller/dashboard');
+      navigate(`/verify-email?email=${encodeURIComponent(data.email || form.email)}`);
     } catch (err) {
       setError(apiErrorMessage(err));
     } finally {
@@ -68,9 +66,8 @@ export default function SignupSeller() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <Field label="Name" value={form.name} onChange={(v) => update('name', v)} required />
-          <Field label="Phone" value={form.phone} onChange={(v) => update('phone', v)} required />
+          <Field label="Email" type="email" value={form.email} onChange={(v) => update('email', v)} required />
         </div>
-        <Field label="Email" type="email" value={form.email} onChange={(v) => update('email', v)} />
         <Field label="Password" type="password" value={form.password} onChange={(v) => update('password', v)} required />
         <Field label="Locality / approximate address" value={form.locality} onChange={(v) => update('locality', v)} required />
         <Field label="Food categories" value={form.categories} onChange={(v) => update('categories', v)} placeholder="e.g. North Indian, Tiffin" />

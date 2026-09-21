@@ -8,6 +8,8 @@ import Landing from './pages/Landing';
 import Login from './pages/Login';
 import SignupCustomer from './pages/SignupCustomer';
 import SignupSeller from './pages/SignupSeller';
+import VerifyEmail from './pages/VerifyEmail';
+import ForgotPassword from './pages/ForgotPassword';
 import Browse from './pages/Browse';
 import FoodDetail from './pages/FoodDetail';
 import OrderHistory from './pages/OrderHistory';
@@ -58,6 +60,8 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/signup/customer" element={<SignupCustomer />} />
           <Route path="/signup/seller" element={<SignupSeller />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/browse" element={<Browse />} />
           <Route path="/food/:id" element={<FoodDetail />} />
           <Route path="/sellers/:id" element={<SellerProfilePage />} />

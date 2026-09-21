@@ -7,8 +7,7 @@ class LocationSchema(BaseModel):
 
 class RegisterRequest(BaseModel):
     name: str
-    email: Optional[str] = None
-    phone: Optional[str] = None
+    email: EmailStr
     password: str
     role: str = "customer"
     locality: Optional[str] = None
@@ -22,7 +21,7 @@ class RegisterRequest(BaseModel):
     deliveryAvailable: Optional[bool] = False
 
 class LoginRequest(BaseModel):
-    identifier: str  # email or phone
+    email: EmailStr
     password: str
 
 class UserOut(BaseModel):
@@ -69,3 +68,18 @@ class AuthResponse(BaseModel):
 class MeResponse(BaseModel):
     user: Dict[str, Any]
     sellerProfile: Optional[Dict[str, Any]] = None
+
+class SendEmailRequest(BaseModel):
+    email: EmailStr
+
+class ResetEmailPasswordRequest(BaseModel):
+    email: EmailStr
+    code: str
+    newPassword: str
+
+class VerifyEmailRequest(BaseModel):
+    email: EmailStr
+    code: str
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
