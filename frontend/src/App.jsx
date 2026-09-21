@@ -80,7 +80,7 @@ export default function App() {
       </main>
 
       <footer className="border-t border-marigold-light/40 py-10 bg-white/60 text-xs text-clay">
-        <div className="max-w-6xl mx-auto px-5 grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div className="max-w-6xl mx-auto px-5 grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="md:col-span-2 space-y-3">
             <span className="font-display text-2xl font-bold text-tulsi-dark">GharSe</span>
             <p className="text-xs text-clay/90 max-w-sm">
@@ -99,35 +99,6 @@ export default function App() {
               <li><a href="/#how-it-works" className="hover:text-marigold-dark transition">How It Works</a></li>
               <li><a href="/#for-cooks" className="hover:text-marigold-dark transition">Cook Earnings Calculator</a></li>
               <li><a href="/#waitlist" className="hover:text-marigold-dark font-semibold text-tulsi">Join Early Access Waitlist</a></li>
-            </ul>
-          </div>
-
-          <div>
-            <p className="font-bold text-ink uppercase tracking-wider text-[11px] mb-3">Investors & Partners</p>
-            <ul className="space-y-2 text-xs">
-              <li>
-                <button 
-                  onClick={() => setInvestorModalOpen(true)}
-                  className="hover:text-tulsi font-semibold text-left flex items-center gap-1"
-                >
-                  <span>📊 Live Investor Evidence Hub</span>
-                </button>
-              </li>
-              <li>
-                <a href="mailto:investors@gharse.in" className="hover:text-marigold-dark transition">
-                  Request Investor Pitch Deck
-                </a>
-              </li>
-              <li>
-                <a href="mailto:founders@gharse.in" className="hover:text-marigold-dark transition">
-                  Partner with Pilot Campus
-                </a>
-              </li>
-              <li>
-                <span className="inline-block mt-2 px-2 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-800 font-semibold">
-                  Seed Round Raising
-                </span>
-              </li>
             </ul>
           </div>
         </div>
