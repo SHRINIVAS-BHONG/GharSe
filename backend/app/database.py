@@ -44,9 +44,18 @@ async def init_indexes():
     if db is None:
         return
     try:
+        # Drop legacy indexes
+        try:
+            await db.users.drop_index("phone_1")
+        except Exception:
+            pass
+        try:
+            await db.waitlist.drop_index("phone_1")
+        except Exception:
+            pass
+
         # Users indexes
         await db.users.create_index("email", unique=True, sparse=True)
-        await db.users.create_index("phone", unique=True, sparse=True)
         await db.users.create_index("role")
         await db.users.create_index([("createdAt", -1)])
 
@@ -85,7 +94,6 @@ async def init_indexes():
 
         # Waitlist collection indexes
         await db.waitlist.create_index("email", unique=True, sparse=True)
-        await db.waitlist.create_index("phone", unique=True, sparse=True)
         await db.waitlist.create_index([("role", 1), ("createdAt", -1)])
         logger.info("MongoDB high-performance indexes verified.")
     except Exception as e:
