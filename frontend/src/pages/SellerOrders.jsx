@@ -59,11 +59,23 @@ export default function SellerOrders() {
                   {o.fulfillmentType === 'pickup' ? 'Pickup' : `Delivery to ${o.deliveryLocality}`} ·{' '}
                   {new Date(o.createdAt).toLocaleString()}
                 </p>
-                {o.contactPhone && (
-                  <p className="text-xs text-clay mt-1">
-                    📞 <a href={`tel:${o.contactPhone}`} className="text-marigold-dark hover:underline">{o.contactPhone}</a>
-                  </p>
-                )}
+                <div className="flex gap-2 mt-2">
+                  {o.contactPhone && (
+                    <a href={`tel:${o.contactPhone}`} className="inline-block px-3 py-1 bg-marigold-light/40 hover:bg-marigold text-ink rounded-full text-xs font-medium transition">
+                      📞 Call Customer
+                    </a>
+                  )}
+                  {o.fulfillmentType === 'delivery' && o.deliveryLocality && (
+                    <a 
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(o.deliveryLocality)}`}
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="inline-block px-3 py-1 bg-tulsi/10 hover:bg-tulsi/20 text-tulsi-dark rounded-full text-xs font-medium transition"
+                    >
+                      📍 Get Directions
+                    </a>
+                  )}
+                </div>
               </div>
               <span className="text-sm font-medium text-marigold-dark">{o.status.replace(/_/g, ' ')}</span>
             </div>

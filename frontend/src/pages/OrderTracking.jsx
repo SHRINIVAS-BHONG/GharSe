@@ -76,7 +76,7 @@ export default function OrderTracking() {
           <h2 className="font-medium mb-1">Contact Cook</h2>
           <p className="text-sm text-clay mb-2">Need an update on your food?</p>
           <a href={`tel:${order.sellerId.userId.phone}`} className="inline-block px-4 py-2 bg-marigold-light/40 hover:bg-marigold text-ink rounded-full text-sm font-medium transition">
-            📞 Call {order.sellerId.userId.phone}
+            📞 Call Cook
           </a>
         </div>
       )}
