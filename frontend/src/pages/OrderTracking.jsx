@@ -71,6 +71,16 @@ export default function OrderTracking() {
         </p>
       </div>
 
+      {order.sellerId?.userId?.phone && !['completed', 'cancelled', 'rejected'].includes(order.status) && (
+        <div className="bg-white rounded-card border border-marigold-light/50 p-5 mt-4">
+          <h2 className="font-medium mb-1">Contact Cook</h2>
+          <p className="text-sm text-clay mb-2">Need an update on your food?</p>
+          <a href={`tel:${order.sellerId.userId.phone}`} className="inline-block px-4 py-2 bg-marigold-light/40 hover:bg-marigold text-ink rounded-full text-sm font-medium transition">
+            📞 Call {order.sellerId.userId.phone}
+          </a>
+        </div>
+      )}
+
       <div className="mt-6">
         <h2 className="font-medium mb-3">Status</h2>
         <StatusStepper status={order.status} fulfillmentType={order.fulfillmentType} />

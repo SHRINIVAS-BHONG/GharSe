@@ -59,6 +59,11 @@ export default function SellerOrders() {
                   {o.fulfillmentType === 'pickup' ? 'Pickup' : `Delivery to ${o.deliveryLocality}`} ·{' '}
                   {new Date(o.createdAt).toLocaleString()}
                 </p>
+                {o.contactPhone && (
+                  <p className="text-xs text-clay mt-1">
+                    📞 <a href={`tel:${o.contactPhone}`} className="text-marigold-dark hover:underline">{o.contactPhone}</a>
+                  </p>
+                )}
               </div>
               <span className="text-sm font-medium text-marigold-dark">{o.status.replace(/_/g, ' ')}</span>
             </div>

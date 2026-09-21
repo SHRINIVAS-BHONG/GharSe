@@ -12,6 +12,7 @@ class OrderCreateRequest(BaseModel):
     quantity: int
     fulfillmentType: str  # 'pickup' | 'delivery'
     deliveryLocality: Optional[str] = ""
+    contactPhone: Optional[str] = ""
     paymentMethod: Optional[str] = "cash"  # 'cash' | 'upi'
 
 class OrderStatusUpdateRequest(BaseModel):

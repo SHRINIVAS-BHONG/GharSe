@@ -4,7 +4,7 @@ import { api, apiErrorMessage } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 
 export default function SignupCustomer() {
-  const [form, setForm] = useState({ name: '', email: '', password: '', locality: '', foodPreferences: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', phone: '', locality: '', foodPreferences: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
@@ -36,6 +36,7 @@ export default function SignupCustomer() {
         name: form.name,
         email: form.email,
         password: form.password,
+        phone: form.phone,
         role: 'customer',
         locality: form.locality,
         foodPreferences: form.foodPreferences ? form.foodPreferences.split(',').map((s) => s.trim()) : [],
@@ -57,6 +58,7 @@ export default function SignupCustomer() {
         <Field label="Name" value={form.name} onChange={(v) => update('name', v)} required />
         <Field label="Email" type="email" value={form.email} onChange={(v) => update('email', v)} required />
         <Field label="Password" type="password" value={form.password} onChange={(v) => update('password', v)} required />
+        <Field label="Phone (optional for delivery)" type="tel" value={form.phone} onChange={(v) => update('phone', v)} placeholder="e.g. 9876543210" />
         <Field label="Locality" value={form.locality} onChange={(v) => update('locality', v)} placeholder="e.g. Sector 14, Rewari" />
         <Field
           label="Food preferences (optional)"

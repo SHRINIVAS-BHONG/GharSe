@@ -107,6 +107,7 @@ async def create_order(
         "total": total,
         "fulfillmentType": fulfillment_type,
         "deliveryLocality": (payload.deliveryLocality or "").strip() if fulfillment_type == "delivery" else "",
+        "contactPhone": (payload.contactPhone or "").strip(),
         "status": "placed",
         "rejectionReason": "",
         "paymentMethod": payload.paymentMethod or "cash",
@@ -232,7 +233,8 @@ async def list_orders(
                 seller_data["userId"] = {
                     "_id": str(seller_user_doc["_id"]),
                     "name": seller_user_doc.get("name"),
-                    "locality": seller_user_doc.get("locality")
+                    "locality": seller_user_doc.get("locality"),
+                    "phone": seller_user_doc.get("phone")
                 }
             order_copy["sellerId"] = seller_data
 
@@ -281,7 +283,8 @@ async def get_order_by_id(
             seller_data["userId"] = {
                 "_id": str(seller_user_doc["_id"]),
                 "name": seller_user_doc.get("name"),
-                "locality": seller_user_doc.get("locality")
+                "locality": seller_user_doc.get("locality"),
+                "phone": seller_user_doc.get("phone")
             }
         order_copy["sellerId"] = seller_data
 

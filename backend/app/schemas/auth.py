@@ -9,6 +9,7 @@ class RegisterRequest(BaseModel):
     name: str
     email: EmailStr
     password: str
+    phone: Optional[str] = None
     role: str = "customer"
     locality: Optional[str] = None
     approximateLocation: Optional[LocationSchema] = None

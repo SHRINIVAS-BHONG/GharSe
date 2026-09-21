@@ -13,7 +13,8 @@ export default function FoodDetail() {
   const [quantity, setQuantity] = useState(1);
   const [fulfillmentType, setFulfillmentType] = useState('pickup');
   const [paymentMethod, setPaymentMethod] = useState('cash');
-  const [deliveryLocality, setDeliveryLocality] = useState('');
+  const [deliveryLocality, setDeliveryLocality] = useState(user?.locality || '');
+  const [contactPhone, setContactPhone] = useState(user?.phone || '');
   const [error, setError] = useState('');
   const [placing, setPlacing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -49,6 +50,7 @@ export default function FoodDetail() {
         quantity,
         fulfillmentType,
         deliveryLocality,
+        contactPhone,
         paymentMethod,
       });
       navigate(`/orders/${data.order._id}`);
@@ -149,6 +151,18 @@ export default function FoodDetail() {
                 />
               </div>
             )}
+
+            <div className="mb-4">
+              <label className="block text-sm text-clay mb-1">Contact phone number</label>
+              <input
+                className="w-full border border-marigold-light/60 rounded-lg px-3 py-2 focus-ring"
+                type="tel"
+                value={contactPhone}
+                onChange={(e) => setContactPhone(e.target.value)}
+                placeholder="e.g. 9876543210"
+              />
+              <p className="text-xs text-clay mt-1">This will be shared with the cook so they can reach you.</p>
+            </div>
 
             <div className="mb-4">
               <p className="text-sm text-clay mb-1">Payment</p>

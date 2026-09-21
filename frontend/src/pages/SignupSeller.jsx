@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 
 export default function SignupSeller() {
   const [form, setForm] = useState({
-    name: '', email: '', password: '', locality: '',
+    name: '', email: '', password: '', phone: '', locality: '',
     deliveryRadiusKm: '2', pickupAvailable: true, deliveryAvailable: false,
     categories: '', bio: '',
   });
@@ -40,6 +40,7 @@ export default function SignupSeller() {
         name: form.name,
         email: form.email,
         password: form.password,
+        phone: form.phone,
         role: 'seller',
         locality: form.locality,
         deliveryRadiusKm: Number(form.deliveryRadiusKm),
@@ -69,6 +70,7 @@ export default function SignupSeller() {
           <Field label="Email" type="email" value={form.email} onChange={(v) => update('email', v)} required />
         </div>
         <Field label="Password" type="password" value={form.password} onChange={(v) => update('password', v)} required />
+        <Field label="Phone number (required for deliveries)" type="tel" value={form.phone} onChange={(v) => update('phone', v)} required />
         <Field label="Locality / approximate address" value={form.locality} onChange={(v) => update('locality', v)} required />
         <Field label="Food categories" value={form.categories} onChange={(v) => update('categories', v)} placeholder="e.g. North Indian, Tiffin" />
         <div>
