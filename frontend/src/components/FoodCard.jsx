@@ -6,40 +6,79 @@ const MEAL_LABEL = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', s
 export default function FoodCard({ listing }) {
   const soldOut = listing.status === 'soldout' || listing.remainingQuantity <= 0;
   const sellerName = listing.sellerId?.userId?.name;
+  const sellerLocality = listing.sellerId?.userId?.locality;
   const rating = listing.sellerId?.rating;
+  const isVeg = listing.dietaryType === 'veg';
 
   return (
     <Link
       to={`/food/${listing._id}`}
-      className="block bg-white rounded-card overflow-hidden border border-marigold-light/40 hover:shadow-md hover:-translate-y-0.5 transition"
+      className="block group bg-white rounded-2xl overflow-hidden border border-marigold-light/50 hover:shadow-lg hover:-translate-y-1 transition-all duration-300"
     >
-      <div className="h-36 bg-marigold-light/30 relative flex items-center justify-center">
+      <div className="h-44 bg-marigold-light/20 relative flex items-center justify-center overflow-hidden">
         {listing.image ? (
-          <img src={imageUrl(listing.image)} alt={listing.name} className="w-full h-full object-cover" />
+          <img
+            src={imageUrl(listing.image)}
+            alt={listing.name}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
+            loading="lazy"
+          />
         ) : (
-          <span className="font-display text-3xl text-marigold-dark/60">{listing.name?.[0]}</span>
+          <span className="font-display text-4xl text-marigold-dark/40">{listing.name?.[0]}</span>
         )}
         {soldOut && (
-          <div className="absolute inset-0 bg-ink/60 flex items-center justify-center">
-            <span className="text-ivory font-display text-lg">Sold out</span>
+          <div className="absolute inset-0 bg-ink/70 flex items-center justify-center backdrop-blur-xs">
+            <span className="text-ivory font-display text-lg font-bold">Sold out</span>
           </div>
         )}
-        <span className="absolute top-2 left-2 bg-ivory/90 text-xs px-2 py-0.5 rounded-full text-clay">
-          {MEAL_LABEL[listing.mealType]}
+        {/* Meal Type Badge */}
+        <span className="absolute top-2.5 left-2.5 bg-white/95 backdrop-blur-sm text-[11px] font-semibold px-2.5 py-0.5 rounded-full text-clay shadow-xs">
+          {MEAL_LABEL[listing.mealType] || 'Meal'}
+        </span>
+
+        {/* Veg / Non-Veg Indicator */}
+        <span className="absolute top-2.5 right-2.5 bg-white/95 backdrop-blur-sm px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
+          <span className={`w-2 h-2 rounded-full ${isVeg ? 'bg-emerald-600' : 'bg-red-600'}`} />
+          <span className={`text-[10px] font-bold ${isVeg ? 'text-emerald-800' : 'text-red-800'}`}>
+            {isVeg ? 'Veg' : 'Non-Veg'}
+          </span>
+        </span>
+
+        {/* Ready time chip */}
+        <span className="absolute bottom-2 left-2.5 bg-black/50 backdrop-blur-sm text-white text-[10px] font-medium px-2 py-0.5 rounded">
+          ⏱ Ready {listing.readyTime}
         </span>
       </div>
-      <div className="p-3">
-        <h3 className="font-display text-lg leading-tight">{listing.name}</h3>
-        <p className="text-sm text-clay mt-0.5">By {sellerName || 'a local cook'}</p>
-        <div className="flex items-center justify-between mt-2 text-sm">
-          <span className="text-tulsi-dark font-semibold">₹{listing.price}</span>
-          {listing.distanceKm != null && <span className="text-clay">{listing.distanceKm} km away</span>}
+
+      <div className="p-3.5 flex flex-col justify-between">
+        <div>
+          <h3 className="font-display text-base font-bold text-ink leading-snug group-hover:text-tulsi-dark transition-colors line-clamp-1">
+            {listing.name}
+          </h3>
+          <p className="text-xs text-clay mt-0.5 flex items-center justify-between">
+            <span>By <strong className="text-ink/80">{sellerName || 'Local Cook'}</strong></span>
+            {rating > 0 && (
+              <span className="text-amber-700 font-bold bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200/50">
+                ★ {rating}
+              </span>
+            )}
+          </p>
+          {sellerLocality && (
+            <p className="text-[11px] text-clay/80 mt-1 line-clamp-1">
+              📍 {sellerLocality}
+            </p>
+          )}
         </div>
-        <div className="flex items-center justify-between mt-1 text-xs text-clay">
-          <span>{soldOut ? 'Sold out' : `${listing.remainingQuantity} portions left`}</span>
-          {rating > 0 && <span>★ {rating}</span>}
+
+        <div className="pt-2 border-t border-marigold-light/30 mt-2.5 flex items-center justify-between">
+          <div>
+            <span className="text-lg font-display font-extrabold text-tulsi-dark">₹{listing.price}</span>
+            <span className="text-[10px] text-clay/70 ml-0.5">/ plate</span>
+          </div>
+          <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+            {soldOut ? 'Sold out' : `${listing.remainingQuantity} left`}
+          </span>
         </div>
-        <p className="text-xs text-clay mt-1">Ready by {listing.readyTime}</p>
       </div>
     </Link>
   );

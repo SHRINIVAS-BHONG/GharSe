@@ -8,6 +8,7 @@ const SAMPLE_DISHES = [
   {
     id: 1,
     name: 'Maa ke Haath ka Slow-Cooked Rajma Chawal',
+    image: '/images/dishes/rajma-chawal.jpg',
     cook: "Anita Sharma",
     locality: "Sector 14 / DU North Campus",
     distance: "350m away",
@@ -25,6 +26,7 @@ const SAMPLE_DISHES = [
   {
     id: 2,
     name: 'Desi Ghee Phulka Thali + Aloo Gobhi & Curd',
+    image: '/images/dishes/phulka-thali.jpg',
     cook: "Rekha Devi",
     locality: "Model Town / Vigyan Nagar",
     distance: "500m away",
@@ -42,6 +44,7 @@ const SAMPLE_DISHES = [
   {
     id: 3,
     name: 'Slow-Simmered Punjabi Kadhi Pakoda + Chawal',
+    image: '/images/dishes/kadhi-pakoda.jpg',
     cook: "Sunita Agarwal",
     locality: "Kamla Nagar / Kota Hub",
     distance: "280m away",
@@ -59,6 +62,7 @@ const SAMPLE_DISHES = [
   {
     id: 4,
     name: 'Homestyle Chicken Curry + Steamed Rice & Roti',
+    image: '/images/dishes/chicken-curry.jpg',
     cook: "Kavita Singh",
     locality: "DLF Phase 3 / Gurgaon",
     distance: "600m away",
@@ -76,6 +80,7 @@ const SAMPLE_DISHES = [
   {
     id: 5,
     name: 'Paneer Bhurji with 3 Parathas & Mint Chutney',
+    image: '/images/dishes/paneer-bhurji.jpg',
     cook: "Pooja Verma",
     locality: "HSR Layout / Koramangala",
     distance: "420m away",
@@ -93,6 +98,7 @@ const SAMPLE_DISHES = [
   {
     id: 6,
     name: 'Indori Poha with Roasted Peanuts & Masala Chai',
+    image: '/images/dishes/indori-poha.jpg',
     cook: "Suman Yadav",
     locality: "Civil Lines / University Area",
     distance: "250m away",
@@ -485,55 +491,109 @@ export default function Landing({ onOpenInvestorModal, scrollToWaitlist }) {
             {filteredDishes.map((dish) => (
               <div
                 key={dish.id}
-                className="bg-white rounded-2xl border border-marigold-light/60 p-5 shadow-xs hover:shadow-md transition flex flex-col justify-between"
+                className="group bg-white rounded-2xl border border-marigold-light/60 overflow-hidden shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between"
               >
-                <div>
-                  <div className="flex justify-between items-center text-xs mb-3">
-                    <span className="text-[11px] font-semibold text-tulsi-dark bg-tulsi/10 px-2 py-0.5 rounded-full">
-                      📍 {dish.locality} ({dish.distance})
-                    </span>
-                    <span className="text-[11px] font-bold text-marigold-dark">
+                {/* Appetizing Food Image Header */}
+                <div className="relative h-48 sm:h-52 w-full overflow-hidden bg-ivory/80">
+                  <img
+                    src={dish.image}
+                    alt={dish.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
+                    loading="lazy"
+                  />
+                  {/* Subtle Gradient Overlays for readable text */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none" />
+
+                  {/* Top Badges */}
+                  <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
+                    {/* Dietary Badge (Veg / Non-Veg) */}
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/95 backdrop-blur-sm text-[11px] font-bold shadow-xs">
+                      <span className={`w-2 h-2 rounded-full ${dish.dietary === 'veg' ? 'bg-emerald-600' : 'bg-red-600'}`} />
+                      <span className={dish.dietary === 'veg' ? 'text-emerald-800' : 'text-red-800'}>
+                        {dish.dietary === 'veg' ? 'Pure Veg' : 'Non-Veg'}
+                      </span>
+                    </div>
+
+                    {/* Category Tag Badge */}
+                    <span className="px-2.5 py-1 rounded-full bg-marigold text-ink text-[11px] font-bold shadow-xs">
                       {dish.tag}
                     </span>
                   </div>
 
-                  <h3 className="font-display text-xl font-bold text-ink">
-                    {dish.name}
-                  </h3>
-                  <p className="text-xs text-clay/80 mt-1">
-                    By <strong>{dish.cook}</strong> • ★ {dish.rating}
-                  </p>
-
-                  <div className="my-3 p-2.5 rounded-xl bg-ivory/60 border border-marigold-light/30 text-[11px] space-y-1 text-clay">
-                    <div><strong>Key Ingredients:</strong> {dish.ingredients}</div>
-                    <div><strong>Prepared With:</strong> {dish.oilType}</div>
+                  {/* Bottom Image Overlay Badges: Location & Ready Time */}
+                  <div className="absolute bottom-2.5 left-3 right-3 flex items-center justify-between text-white text-xs pointer-events-none">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-black/50 backdrop-blur-sm px-2.5 py-0.5 rounded-md">
+                      📍 {dish.locality} ({dish.distance})
+                    </span>
+                    <span className="text-[11px] font-semibold bg-amber-500/90 text-white px-2 py-0.5 rounded-md shadow-xs">
+                      ⏱ {dish.readyTime}
+                    </span>
                   </div>
-
-                  <p className="text-xs text-clay italic border-l-2 border-marigold pl-2 py-0.5 my-2">
-                    "{dish.quote}"
-                  </p>
                 </div>
 
-                <div className="pt-3 border-t border-marigold-light/30 mt-3">
-                  <div className="flex justify-between items-center mb-3">
-                    <div>
-                      <span className="text-xl font-display font-extrabold text-tulsi-dark">₹{dish.price}</span>
-                      <span className="text-[11px] text-clay/70 ml-1">/ plate</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
-                        {dish.portionsLeft} portions left
+                {/* Card Content Body */}
+                <div className="p-5 flex-1 flex flex-col justify-between">
+                  <div>
+                    {/* Cook Info & Rating Header */}
+                    <div className="flex items-center justify-between text-xs mb-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-5 h-5 rounded-full bg-tulsi/10 text-tulsi-dark flex items-center justify-center font-bold text-[11px]">
+                          👩‍🍳
+                        </span>
+                        <span className="text-clay/90 font-medium">
+                          By <strong className="text-ink">{dish.cook}</strong>
+                        </span>
+                      </div>
+                      <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 font-bold px-2 py-0.5 rounded-full border border-amber-200/60 text-[11px]">
+                        ★ {dish.rating}
                       </span>
-                      <span className="text-[10px] text-clay block mt-0.5">Ready: {dish.readyTime}</span>
                     </div>
+
+                    {/* Dish Title */}
+                    <h3 className="font-display text-xl font-bold text-ink leading-snug group-hover:text-tulsi-dark transition-colors">
+                      {dish.name}
+                    </h3>
+
+                    {/* Ingredients & Prep details */}
+                    <div className="my-3 p-3 rounded-xl bg-ivory/70 border border-marigold-light/40 text-[11px] space-y-1.5 text-clay">
+                      <div className="flex items-start gap-1.5">
+                        <span className="text-tulsi font-bold">🌿</span>
+                        <span><strong className="text-ink/80">Key Ingredients:</strong> {dish.ingredients}</span>
+                      </div>
+                      <div className="flex items-start gap-1.5">
+                        <span className="text-marigold-dark font-bold">🫒</span>
+                        <span><strong className="text-ink/80">Prepared With:</strong> {dish.oilType}</span>
+                      </div>
+                    </div>
+
+                    {/* Customer Quote */}
+                    <p className="text-xs text-clay italic border-l-2 border-marigold pl-2.5 py-0.5 my-2">
+                      "{dish.quote}"
+                    </p>
                   </div>
 
-                  <a
-                    href="#waitlist"
-                    className="w-full py-2.5 rounded-xl bg-marigold text-ink text-xs font-bold hover:bg-marigold-dark hover:text-white transition flex items-center justify-center gap-1.5"
-                  >
-                    <span>Pre-Register to Order</span>
-                  </a>
+                  {/* Card Footer: Price & Pre-Register Action */}
+                  <div className="pt-3 border-t border-marigold-light/30 mt-3">
+                    <div className="flex justify-between items-center mb-3">
+                      <div>
+                        <span className="text-2xl font-display font-extrabold text-tulsi-dark">₹{dish.price}</span>
+                        <span className="text-[11px] text-clay/70 ml-1 font-medium">/ plate</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200/50 px-2.5 py-0.5 rounded-full inline-block">
+                          🔥 {dish.portionsLeft} portions left
+                        </span>
+                      </div>
+                    </div>
+
+                    <a
+                      href="#waitlist"
+                      className="w-full py-2.5 rounded-xl bg-marigold text-ink text-xs font-bold hover:bg-marigold-dark hover:text-white transition-all shadow-xs hover:shadow-md flex items-center justify-center gap-1.5 group-hover:bg-tulsi group-hover:text-ivory"
+                    >
+                      <span>Pre-Register to Order</span>
+                      <span className="transition-transform group-hover:translate-x-1">→</span>
+                    </a>
+                  </div>
                 </div>
               </div>
             ))}

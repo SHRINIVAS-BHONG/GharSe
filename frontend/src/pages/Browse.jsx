@@ -25,7 +25,7 @@ export default function Browse() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    const params = { sort: filters.sort };
+    const params = { sort: filters.sort, limit: 150 };
     if (filters.mealType) params.mealType = filters.mealType;
     if (filters.dietaryType) params.dietaryType = filters.dietaryType;
     if (filters.pickup) params.pickup = 'true';

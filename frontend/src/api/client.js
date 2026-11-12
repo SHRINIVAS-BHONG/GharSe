@@ -29,6 +29,6 @@ export const UPLOADS_BASE_URL = API_BASE_URL.replace(/\/api$/, '');
 
 export function imageUrl(path) {
   if (!path) return null;
-  if (path.startsWith('http')) return path;
+  if (path.startsWith('http') || path.startsWith('/images/')) return path;
   return `${UPLOADS_BASE_URL}${path}`;
 }

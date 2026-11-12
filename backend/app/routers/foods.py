@@ -8,8 +8,15 @@ from app.models.mongo_utils import serialize_doc, serialize_docs, parse_object_i
 from app.services.image_storage import save_image
 from app.utils.distance import haversine_km
 from app.utils.cache import cache
+from app.services.seed_data import seed_all_foods
 
 router = APIRouter(prefix="/api/foods", tags=["Foods"])
+
+@router.api_route("/seed", methods=["GET", "POST"], response_model=dict)
+async def seed_foods_endpoint(force: bool = False):
+    """Seed 15 dishes in Gurgaon & Sohna and 100 dishes across all India."""
+    result = await seed_all_foods(force=force)
+    return result
 
 @router.get("", response_model=dict)
 async def list_foods(
@@ -24,7 +31,7 @@ async def list_foods(
     lng: Optional[float] = None,
     maxDistanceKm: Optional[float] = None,
     page: int = 1,
-    limit: int = 50,
+    limit: int = 150,
 ):
     cache_key = f"foods_list:{mealType}:{dietaryType}:{pickup}:{delivery}:{maxPrice}:{minRating}:{sort}:{lat}:{lng}:{maxDistanceKm}:{page}:{limit}"
     cached_result = await cache.get(cache_key)

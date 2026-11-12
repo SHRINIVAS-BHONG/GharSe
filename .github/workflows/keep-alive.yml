@@ -1,0 +1,23 @@
+name: Keep Render Backend Alive
+
+on:
+  schedule:
+    # Run every 5 minutes to prevent Render free-tier sleep (inactivity timeout is 15 minutes)
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # Allows manual triggering from GitHub Actions tab
+
+jobs:
+  ping-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping GharSe Backend Health Endpoint
+        run: |
+          echo "Pinging GharSe Backend at https://gharse-o7uk.onrender.com/api/health"
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -m 30 "https://gharse-o7uk.onrender.com/api/health")
+          echo "Response status code: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" -eq 200 ]; then
+            echo "Backend is awake and healthy!"
+          else
+            echo "Warning: Response code was $HTTP_STATUS"
+          fi
+

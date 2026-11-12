@@ -30,8 +30,31 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Initializing GharSe backend service...")
     await connect_db()
+
+    # Auto-seed marketplace listings if database is empty or low
+    try:
+        from app.database import db_instance
+        if db_instance.db is not None:
+            active_listings = await db_instance.db.foodlistings.count_documents({"status": "active", "isDeleted": {"$ne": True}})
+            if active_listings < 20:
+                logger.info(f"Active listings count is {active_listings}. Auto-seeding Gurgaon/Sohna (15) and All-India (100) dishes...")
+                from app.services.seed_data import seed_all_foods
+                await seed_all_foods(force=False)
+    except Exception as e:
+        logger.warning(f"Auto-seed check encountered non-fatal error: {e}")
+
+    # Keep-alive background task to prevent Render 15-minute free-tier idle shutdown
+    keepalive_task = None
+    if os.getenv("RENDER") or os.getenv("RENDER_EXTERNAL_URL") or os.getenv("ENABLE_SELF_PING", "false").lower() == "true":
+        import asyncio
+        from app.keepalive import start_keepalive_pinger
+        keepalive_task = asyncio.create_task(start_keepalive_pinger(interval_seconds=300))
+        logger.info("Keep-alive self-ping background worker active (5 min interval)")
+
     yield
     # Shutdown
+    if keepalive_task:
+        keepalive_task.cancel()
     logger.info("Shutting down GharSe backend service...")
     await close_db()
 
@@ -59,6 +82,7 @@ app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=r"https://.*\.onrender\.com|http://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -84,8 +108,16 @@ if os.getenv("ENV") == "production":
 # Serve uploaded static files
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
-# Health check
-@app.get("/api/health")
+# Root & Health check routes for uptime monitors & keep-alive pinger
+@app.api_route("/", methods=["GET", "HEAD"])
+async def root():
+    return {"status": "ok", "service": "gharse-backend"}
+
+@app.api_route("/health", methods=["GET", "HEAD"])
+async def root_health():
+    return {"status": "ok", "service": "gharse-backend"}
+
+@app.api_route("/api/health", methods=["GET", "HEAD"])
 async def health_check():
     return {"status": "ok", "service": "gharse-backend"}
 

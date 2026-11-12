@@ -3,6 +3,7 @@ import { Routes, Route, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import InvestorProofModal from './components/InvestorProofModal';
+import { initKeepAlive } from './utils/keepAlive';
 
 import Landing from './pages/Landing';
 import Login from './pages/Login';
@@ -23,6 +24,11 @@ import AdminDashboard from './pages/AdminDashboard';
 export default function App() {
   const [investorModalOpen, setInvestorModalOpen] = useState(false);
   const location = useLocation();
+
+  // Start 5-min background keep-alive ping to prevent Render 15-min idle spin-down
+  useEffect(() => {
+    initKeepAlive(5);
+  }, []);
 
   // Auto-open investor modal if query has ?investor=true or hash is #investor
   useEffect(() => {
