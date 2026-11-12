@@ -399,7 +399,11 @@ export default function OrderTracking() {
           )}
         </div>
       )}
-      {complaintSubmitted && <p className="mt-4 text-tulsi-dark text-sm">Your complaint has been submitted. Our team will look into it.</p>}
+      {complaintSubmitted && (
+        <p className="mt-4 text-tulsi-dark text-sm">
+          Your complaint has been submitted. Our team will look into it.
+        </p>
+      )}
     </div>
   );
 }
