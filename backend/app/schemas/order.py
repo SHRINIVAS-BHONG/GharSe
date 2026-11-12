@@ -18,6 +18,10 @@ class OrderCreateRequest(BaseModel):
 class OrderStatusUpdateRequest(BaseModel):
     status: str
     rejectionReason: Optional[str] = ""
+    cancellationReason: Optional[str] = ""
+
+class OrderCancelRequest(BaseModel):
+    reason: Optional[str] = "Customer requested cancellation"
 
 class OrderResponse(BaseModel):
     order: Dict[str, Any]

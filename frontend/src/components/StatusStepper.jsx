@@ -15,7 +15,15 @@ export default function StatusStepper({ status, fulfillmentType }) {
     return <p className="text-red-700 font-medium">This order was rejected by the cook.</p>;
   }
   if (status === 'cancelled') {
-    return <p className="text-red-700 font-medium">This order was cancelled.</p>;
+    return (
+      <div className="flex items-center gap-3 p-3.5 bg-red-50/80 border border-red-200 rounded-xl text-red-700">
+        <span className="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center font-bold text-red-600 flex-shrink-0">✕</span>
+        <div>
+          <p className="font-medium text-sm text-red-800">Order Cancelled</p>
+          <p className="text-xs text-red-600 mt-0.5">This order has been cancelled and is no longer being processed.</p>
+        </div>
+      </div>
+    );
   }
 
   const steps = fulfillmentType === 'delivery' ? DELIVERY_STEPS : PICKUP_STEPS;

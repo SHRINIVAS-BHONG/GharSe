@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from bson import ObjectId
 from app.database import get_db, get_client
 from app.config import settings
-from app.schemas.order import OrderCreateRequest, OrderStatusUpdateRequest
+from app.schemas.order import OrderCreateRequest, OrderStatusUpdateRequest, OrderCancelRequest
 from app.middleware.auth import get_current_user
 from app.models.mongo_utils import serialize_doc, serialize_docs, parse_object_id
 from app.utils.order_number import generate_order_number
@@ -14,7 +14,7 @@ from app.utils.cache import cache
 router = APIRouter(prefix="/api/orders", tags=["Orders"])
 
 VALID_TRANSITIONS = {
-    "placed": ["accepted", "rejected"],
+    "placed": ["accepted", "rejected", "cancelled"],
     "accepted": ["preparing", "cancelled"],
     "preparing": ["ready", "cancelled"],
     "ready": ["out_for_delivery", "completed"],
@@ -290,6 +290,82 @@ async def get_order_by_id(
 
     return {"order": serialize_doc(order_copy)}
 
+@router.post("/{id}/cancel", response_model=dict)
+async def cancel_order(
+    id: str,
+    payload: Optional[OrderCancelRequest] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    order_id = parse_object_id(id)
+    db = get_db()
+    order = await db.orders.find_one({"_id": order_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found.")
+
+    is_customer_owner = str(order.get("customerId")) == str(current_user["_id"])
+    seller_profile = await db.sellerprofiles.find_one({"userId": ObjectId(current_user["_id"])})
+    is_seller_owner = seller_profile and str(order.get("sellerId")) == str(seller_profile["_id"])
+    is_admin = current_user.get("role") == "admin"
+
+    if not is_customer_owner and not is_seller_owner and not is_admin:
+        raise HTTPException(status_code=403, detail="You do not have permission to cancel this order.")
+
+    current_status = order.get("status")
+    if current_status in ["completed", "rejected", "cancelled"]:
+        raise HTTPException(status_code=400, detail=f"Cannot cancel order that is already {current_status}.")
+
+    if is_customer_owner and current_status not in ["placed", "accepted"]:
+        raise HTTPException(
+            status_code=400,
+            detail="The kitchen has already started preparing this order. Please call the cook directly to request cancellation."
+        )
+
+    reason = (payload.reason if payload and payload.reason else "").strip()
+    if not reason:
+        reason = "Cancelled by customer" if is_customer_owner else "Cancelled by cook"
+
+    now = datetime.now(timezone.utc)
+    set_dict = {
+        "status": "cancelled",
+        "cancellationReason": reason,
+        "cancelledBy": "customer" if is_customer_owner else ("seller" if is_seller_owner else "admin"),
+        "cancelledAt": now,
+        "updatedAt": now
+    }
+
+    # Restore inventory
+    for item in order.get("items", []):
+        item_listing_id = item.get("listingId")
+        item_qty = item.get("quantity", 0)
+        if item_listing_id and item_qty > 0:
+            await db.foodlistings.update_one(
+                {"_id": ObjectId(item_listing_id) if not isinstance(item_listing_id, ObjectId) else item_listing_id},
+                {
+                    "$inc": {"remainingQuantity": item_qty},
+                    "$set": {"status": "active", "updatedAt": now}
+                }
+            )
+
+    if order.get("paymentMethod") == "cash":
+        set_dict["paymentStatus"] = "cancelled"
+        set_dict["cancellationNote"] = "No payment collected for Cash on Fulfillment order."
+    elif order.get("paymentMethod") == "upi":
+        set_dict["paymentStatus"] = "refund_initiated"
+        set_dict["refundAmount"] = float(order.get("total", 0))
+        set_dict["refundStatus"] = "initiated"
+        set_dict["refundReference"] = f"UPI-REF-{int(now.timestamp())}"
+        set_dict["cancellationNote"] = f"Full refund of ₹{order.get('total', 0)} initiated to original UPI account."
+
+    updated_order = await db.orders.find_one_and_update(
+        {"_id": order_id},
+        {"$set": set_dict},
+        return_document=True
+    )
+
+    await cache.invalidate_tags(["orders", "admin_stats", "foods", f"seller:{order.get('sellerId')}", f"order:{order_id}"])
+
+    return {"order": serialize_doc(updated_order), "message": "Order cancelled successfully."}
+
 @router.put("/{id}/status", response_model=dict)
 async def update_order_status(
     id: str,
@@ -299,6 +375,7 @@ async def update_order_status(
     order_id = parse_object_id(id)
     new_status = payload.status
     rejection_reason = payload.rejectionReason or ""
+    cancellation_reason = payload.cancellationReason or ""
 
     db = get_db()
     order = await db.orders.find_one({"_id": order_id})
@@ -308,13 +385,16 @@ async def update_order_status(
     seller_profile = await db.sellerprofiles.find_one({"userId": ObjectId(current_user["_id"])})
     is_seller_owner = seller_profile and str(order.get("sellerId")) == str(seller_profile["_id"])
     is_customer_owner = str(order.get("customerId")) == str(current_user["_id"])
+    is_admin = current_user.get("role") == "admin"
     
     current_status = order.get("status")
 
-    if is_customer_owner and new_status == "cancelled" and current_status == "placed":
+    if is_customer_owner and new_status == "cancelled" and current_status in ["placed", "accepted"]:
         pass # Allow customer to cancel
     elif is_seller_owner:
         pass # Seller can update statuses
+    elif is_admin:
+        pass # Admin can update statuses
     else:
         raise HTTPException(status_code=403, detail="You do not have permission to update this order's status.")
 
@@ -347,7 +427,22 @@ async def update_order_status(
                         "$set": {"status": "active", "updatedAt": now}
                     }
                 )
-        set_dict["rejectionReason"] = rejection_reason
+        if new_status == "rejected":
+            set_dict["rejectionReason"] = rejection_reason
+        elif new_status == "cancelled":
+            reason = cancellation_reason or rejection_reason or ("Cancelled by customer" if is_customer_owner else "Cancelled by cook")
+            set_dict["cancellationReason"] = reason
+            set_dict["cancelledBy"] = "customer" if is_customer_owner else ("seller" if is_seller_owner else "admin")
+            set_dict["cancelledAt"] = now
+            if order.get("paymentMethod") == "cash":
+                set_dict["paymentStatus"] = "cancelled"
+                set_dict["cancellationNote"] = "No payment collected for Cash on Fulfillment order."
+            elif order.get("paymentMethod") == "upi":
+                set_dict["paymentStatus"] = "refund_initiated"
+                set_dict["refundAmount"] = float(order.get("total", 0))
+                set_dict["refundStatus"] = "initiated"
+                set_dict["refundReference"] = f"UPI-REF-{int(now.timestamp())}"
+                set_dict["cancellationNote"] = f"Full refund of ₹{order.get('total', 0)} initiated to original UPI account."
 
     if new_status == "completed":
         if order.get("paymentMethod") == "cash":
@@ -367,6 +462,7 @@ async def update_order_status(
     )
 
     # Invalidate caches
-    await cache.invalidate_tags(["orders", "admin_stats", "foods", f"seller:{seller_profile['_id']}"])
+    seller_tag_id = seller_profile['_id'] if seller_profile else order.get('sellerId')
+    await cache.invalidate_tags(["orders", "admin_stats", "foods", f"seller:{seller_tag_id}", f"order:{order_id}"])
 
     return {"order": serialize_doc(updated_order)}

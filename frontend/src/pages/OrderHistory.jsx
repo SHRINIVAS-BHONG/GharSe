@@ -41,15 +41,27 @@ function Section({ title, orders, empty }) {
       {orders.length === 0 && <p className="text-clay text-sm">{empty}</p>}
       <div className="space-y-3">
         {orders.map((o) => (
-          <Link key={o._id} to={`/orders/${o._id}`} className="block bg-white rounded-card border border-marigold-light/50 p-4 hover:border-marigold">
+          <Link key={o._id} to={`/orders/${o._id}`} className="block bg-white rounded-card border border-marigold-light/50 p-4 hover:border-marigold transition">
             <div className="flex justify-between items-center">
               <span className="font-medium">#{o.orderNumber}</span>
-              <span className={`text-sm font-medium ${STATUS_COLOR[o.status]}`}>{o.status.replace(/_/g, ' ')}</span>
+              <div className="flex items-center gap-2">
+                {o.status === 'cancelled' && o.paymentMethod === 'upi' && (
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-tulsi-dark border border-emerald-200">
+                    Refund initiated
+                  </span>
+                )}
+                <span className={`text-sm font-medium capitalize ${STATUS_COLOR[o.status]}`}>
+                  {o.status.replace(/_/g, ' ')}
+                </span>
+              </div>
             </div>
             <p className="text-sm text-clay mt-1">
               {o.items.map((i) => `${i.name} × ${i.quantity}`).join(', ')} · ₹{o.total}
             </p>
-            <p className="text-xs text-clay mt-1">{new Date(o.createdAt).toLocaleString()}</p>
+            <p className="text-xs text-clay mt-1 flex justify-between items-center">
+              <span>{new Date(o.createdAt).toLocaleString()}</span>
+              <span className="capitalize">{o.paymentMethod === 'cash' ? 'Cash' : 'UPI'}</span>
+            </p>
           </Link>
         ))}
       </div>
