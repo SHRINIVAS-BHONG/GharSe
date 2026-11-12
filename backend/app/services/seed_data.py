@@ -529,3 +529,4 @@ async def seed_all_foods(force: bool = False):
         "all_india_seeded": india_count,
         "total_active_listings": total_active
     }
+
