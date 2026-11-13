@@ -116,7 +116,7 @@ async def root_health():
 
 @app.api_route("/api/health", methods=["GET", "HEAD"])
 async def health_check():
-    return {"status": "ok", "service": "gharse-backend", "version": "v1.2-live"}
+    return {"status": "ok", "service": "gharse-backend", "version": "v1.3-auth-fixed"}
 
 # Register Routers
 app.include_router(auth.router)

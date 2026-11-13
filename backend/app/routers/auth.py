@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from bson import ObjectId
+from app.config import settings
 from app.database import get_db
 from app.schemas.auth import RegisterRequest, LoginRequest, AuthResponse, MeResponse, SendEmailRequest, ResetEmailPasswordRequest, VerifyEmailRequest, ResendVerificationRequest
 from app.utils.security import hash_password, verify_password, sign_token
