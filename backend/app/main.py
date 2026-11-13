@@ -100,9 +100,7 @@ async def add_process_time_header(request, call_next):
 app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(DuplicateKeyError, duplicate_key_exception_handler)
-# Fallback exception handler in production
-if os.getenv("ENV") == "production":
-    app.add_exception_handler(Exception, generic_exception_handler)
+app.add_exception_handler(Exception, generic_exception_handler)
 
 # Serve uploaded static files
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")

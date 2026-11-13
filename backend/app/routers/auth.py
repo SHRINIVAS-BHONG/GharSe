@@ -12,93 +12,106 @@ router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(payload: RegisterRequest, background_tasks: BackgroundTasks):
-    name = (payload.name or "").strip()
-    email = (payload.email or "").strip().lower()
-    password = payload.password or ""
-    role = payload.role
+    try:
+        name = (payload.name or "").strip()
+        email = (payload.email or "").strip().lower()
+        password = payload.password or ""
+        role = payload.role
 
-    if not name or not password or not email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Name, email, and password are required."
-        )
+        if not name or not password or not email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Name, email, and password are required."
+            )
 
-    if len(password) < 6:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password must be at least 6 characters."
-        )
+        if len(password) < 6:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must be at least 6 characters."
+            )
 
-    if role not in ["customer", "seller"]:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid role for self-registration."
-        )
+        if role not in ["customer", "seller"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid role for self-registration."
+            )
 
-    db = get_db()
-    
-    existing = await db.users.find_one({"email": email})
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="An account with this email already exists."
-        )
+        db = get_db()
+        if db is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database is currently connecting. Please try again in a few seconds."
+            )
+        
+        existing = await db.users.find_one({"email": email})
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="An account with this email already exists."
+            )
 
-    now = datetime.now(timezone.utc)
-    password_hash = hash_password(password)
+        now = datetime.now(timezone.utc)
+        password_hash = hash_password(password)
 
-    # In pilot mode or when SMTP is not configured, auto-verify so users are not blocked
-    auto_verify = not bool(settings.SMTP_USER and settings.SMTP_PASSWORD)
+        # In pilot mode or when SMTP is not configured, auto-verify so users are not blocked
+        auto_verify = not bool(settings.SMTP_USER and settings.SMTP_PASSWORD)
 
-    user_doc = {
-        "name": name,
-        "email": email,
-        "passwordHash": password_hash,
-        "role": role,
-        "locality": (payload.locality or "").strip() if payload.locality else None,
-        "approximateLocation": payload.approximateLocation.dict() if payload.approximateLocation else None,
-        "foodPreferences": payload.foodPreferences or [],
-        "isVerified": auto_verify,
-        "isDemo": False,
-        "createdAt": now,
-        "updatedAt": now
-    }
-
-    result = await db.users.insert_one(user_doc)
-    user_id = result.inserted_id
-    user_doc["_id"] = user_id
-    user_doc.pop("passwordHash", None)
-
-    seller_profile_doc = None
-    if role == "seller":
-        seller_profile_doc = {
-            "userId": user_id,
-            "bio": (payload.bio or "").strip(),
-            "categories": payload.categories or [],
-            "verificationStatus": "pending",
-            "verificationNotes": "",
-            "profilePhoto": "",
-            "deliveryRadiusKm": payload.deliveryRadiusKm or 2.0,
-            "pickupAvailable": payload.pickupAvailable if payload.pickupAvailable is not None else True,
-            "deliveryAvailable": payload.deliveryAvailable if payload.deliveryAvailable is not None else False,
-            "rating": 0.0,
-            "ratingCount": 0,
-            "totalOrders": 0,
+        user_doc = {
+            "name": name,
+            "email": email,
+            "phone": (payload.phone or "").strip() or None,
+            "passwordHash": password_hash,
+            "role": role,
+            "locality": (payload.locality or "").strip() if payload.locality else None,
+            "approximateLocation": payload.approximateLocation.dict() if payload.approximateLocation else None,
+            "foodPreferences": payload.foodPreferences or [],
+            "isVerified": auto_verify,
             "isDemo": False,
             "createdAt": now,
             "updatedAt": now
         }
-        sp_result = await db.sellerprofiles.insert_one(seller_profile_doc)
-        seller_profile_doc["_id"] = sp_result.inserted_id
 
-    if not auto_verify:
-        background_tasks.add_task(send_verification_code, email)
-    
-    return {
-        "message": "Account created successfully." if auto_verify else "Account created. Please verify your email.",
-        "email": email,
-        "isVerified": auto_verify
-    }
+        result = await db.users.insert_one(user_doc)
+        user_id = result.inserted_id
+        user_doc["_id"] = user_id
+        user_doc.pop("passwordHash", None)
+
+        seller_profile_doc = None
+        if role == "seller":
+            seller_profile_doc = {
+                "userId": user_id,
+                "bio": (payload.bio or "").strip(),
+                "categories": payload.categories or [],
+                "verificationStatus": "pending",
+                "verificationNotes": "",
+                "profilePhoto": "",
+                "deliveryRadiusKm": payload.deliveryRadiusKm or 2.0,
+                "pickupAvailable": payload.pickupAvailable if payload.pickupAvailable is not None else True,
+                "deliveryAvailable": payload.deliveryAvailable if payload.deliveryAvailable is not None else False,
+                "rating": 0.0,
+                "ratingCount": 0,
+                "totalOrders": 0,
+                "isDemo": False,
+                "createdAt": now,
+                "updatedAt": now
+            }
+            sp_result = await db.sellerprofiles.insert_one(seller_profile_doc)
+            seller_profile_doc["_id"] = sp_result.inserted_id
+
+        if not auto_verify:
+            background_tasks.add_task(send_verification_code, email)
+        
+        return {
+            "message": "Account created successfully." if auto_verify else "Account created. Please verify your email.",
+            "email": email,
+            "isVerified": auto_verify
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Registration failed: {type(e).__name__} - {str(e)}")
 
 @router.post("/login", response_model=AuthResponse)
 async def login(payload: LoginRequest):
