@@ -187,7 +187,7 @@ async def handle_send_email(payload: SendEmailRequest, background_tasks: Backgro
         raise HTTPException(status_code=404, detail="User not found with this email.")
         
     background_tasks.add_task(send_reset_code, email)
-    return {"message": "Reset code sent successfully (check backend console logs)."}
+    return {"message": "Reset code sent successfully. Please check your email inbox."}
 
 @router.post("/forgot-password/reset")
 async def handle_reset_password(payload: ResetEmailPasswordRequest):
@@ -201,7 +201,7 @@ async def handle_reset_password(payload: ResetEmailPasswordRequest):
     if len(new_password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
         
-    if not verify_reset_code(email, code):
+    if not await verify_reset_code(email, code):
         raise HTTPException(status_code=401, detail="Invalid or expired reset code.")
         
     db = get_db()
@@ -225,7 +225,7 @@ async def handle_verify_email(payload: VerifyEmailRequest):
     if not email or not code:
         raise HTTPException(status_code=400, detail="Email and code are required.")
 
-    if not verify_email_code(email, code):
+    if not await verify_email_code(email, code):
         raise HTTPException(status_code=400, detail="Invalid or expired verification code.")
 
     db = get_db()

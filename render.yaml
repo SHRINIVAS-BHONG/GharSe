@@ -20,6 +20,14 @@ services:
           property: connectionString
       - key: CLIENT_URL
         sync: false # Set this in the Render Dashboard once the frontend URL is known
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        value: shrinivasbhong2428@gmail.com
+      - key: SMTP_PASSWORD
+        value: prwtyclpyvsckpzh
       - key: PYTHON_VERSION
         value: 3.11.0 # Ensures compatibility with your Dockerfile
 
