@@ -36,14 +36,14 @@ def send_reset_code(email: str):
         body = f"Hello,\n\nUse this 6-digit code to reset your password on GharSe:\n\n{code}\n\nThis code will expire shortly.\n\nThanks,\nThe GharSe Team"
         msg.attach(MIMEText(body, 'plain'))
         
-        server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT)
+        server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=5.0)
         server.starttls()
         server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
         server.send_message(msg)
         server.quit()
         logger.info(f"Reset code email sent successfully to {email}")
     except Exception as e:
-        logger.error(f"Failed to send email to {email}: {e}")
+        logger.warning(f"SMTP send failed or timed out for {email}: {e}")
         # In a real app we might want to raise an HTTPException here, but for now we'll just log it.
 
 def verify_reset_code(email: str, code: str) -> bool:
@@ -81,14 +81,14 @@ def send_verification_code(email: str):
         body = f"Hello,\n\nWelcome to GharSe! Please use this 6-digit code to verify your email address:\n\n{code}\n\nThanks,\nThe GharSe Team"
         msg.attach(MIMEText(body, 'plain'))
         
-        server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT)
+        server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=5.0)
         server.starttls()
         server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
         server.send_message(msg)
         server.quit()
         logger.info(f"Verification code email sent successfully to {email}")
     except Exception as e:
-        logger.error(f"Failed to send email to {email}: {e}")
+        logger.warning(f"SMTP send failed or timed out for {email}: {e}")
 
 def verify_email_code(email: str, code: str) -> bool:
     """

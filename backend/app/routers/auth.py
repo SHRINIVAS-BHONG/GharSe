@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from bson import ObjectId
 from app.database import get_db
 from app.schemas.auth import RegisterRequest, LoginRequest, AuthResponse, MeResponse, SendEmailRequest, ResetEmailPasswordRequest, VerifyEmailRequest, ResendVerificationRequest
@@ -11,7 +11,7 @@ from app.services.email_service import send_reset_code, verify_reset_code, send_
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
-async def register(payload: RegisterRequest):
+async def register(payload: RegisterRequest, background_tasks: BackgroundTasks):
     name = (payload.name or "").strip()
     email = (payload.email or "").strip().lower()
     password = payload.password or ""
@@ -92,7 +92,7 @@ async def register(payload: RegisterRequest):
         seller_profile_doc["_id"] = sp_result.inserted_id
 
     if not auto_verify:
-        send_verification_code(email)
+        background_tasks.add_task(send_verification_code, email)
     
     return {
         "message": "Account created successfully." if auto_verify else "Account created. Please verify your email.",
@@ -162,7 +162,7 @@ async def get_me(current_user: dict = Depends(get_current_user)):
     }
 
 @router.post("/forgot-password/send-email")
-async def handle_send_email(payload: SendEmailRequest):
+async def handle_send_email(payload: SendEmailRequest, background_tasks: BackgroundTasks):
     email = (payload.email or "").strip().lower()
     if not email:
         raise HTTPException(status_code=400, detail="Email required.")
@@ -172,7 +172,7 @@ async def handle_send_email(payload: SendEmailRequest):
     if not user:
         raise HTTPException(status_code=404, detail="User not found with this email.")
         
-    send_reset_code(email)
+    background_tasks.add_task(send_reset_code, email)
     return {"message": "Reset code sent successfully (check backend console logs)."}
 
 @router.post("/forgot-password/reset")
@@ -243,7 +243,7 @@ async def handle_verify_email(payload: VerifyEmailRequest):
     }
 
 @router.post("/resend-verification")
-async def handle_resend_verification(payload: ResendVerificationRequest):
+async def handle_resend_verification(payload: ResendVerificationRequest, background_tasks: BackgroundTasks):
     email = (payload.email or "").strip().lower()
     if not email:
         raise HTTPException(status_code=400, detail="Email is required.")
@@ -257,5 +257,5 @@ async def handle_resend_verification(payload: ResendVerificationRequest):
     if user.get("isVerified"):
         return {"message": "Email is already verified."}
 
-    send_verification_code(email)
+    background_tasks.add_task(send_verification_code, email)
     return {"message": "Verification code resent successfully."}
