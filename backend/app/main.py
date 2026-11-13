@@ -29,24 +29,23 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("Initializing GharSe backend service...")
+    import asyncio
     await connect_db()
 
-    # Auto-seed marketplace listings if database is empty or low
-    try:
-        from app.database import db_instance
-        if db_instance.db is not None:
-            active_listings = await db_instance.db.foodlistings.count_documents({"status": "active", "isDeleted": {"$ne": True}})
-            if active_listings < 20:
-                logger.info(f"Active listings count is {active_listings}. Auto-seeding Gurgaon/Sohna (15) and All-India (100) dishes...")
-                from app.services.seed_data import seed_all_foods
-                await seed_all_foods(force=False)
-    except Exception as e:
-        logger.warning(f"Auto-seed check encountered non-fatal error: {e}")
+    # Background async initialization (non-blocking so Uvicorn binds immediately!)
+    async def background_init():
+        try:
+            await asyncio.sleep(2)
+            from app.services.seed_data import seed_all_foods
+            await seed_all_foods(force=False)
+        except Exception as e:
+            logger.warning(f"Background seed initialization non-fatal error: {e}")
+
+    asyncio.create_task(background_init())
 
     # Keep-alive background task to prevent Render 15-minute free-tier idle shutdown
     keepalive_task = None
     if os.getenv("RENDER") or os.getenv("RENDER_EXTERNAL_URL") or os.getenv("ENABLE_SELF_PING", "false").lower() == "true":
-        import asyncio
         from app.keepalive import start_keepalive_pinger
         keepalive_task = asyncio.create_task(start_keepalive_pinger(interval_seconds=300))
         logger.info("Keep-alive self-ping background worker active (5 min interval)")

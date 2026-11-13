@@ -52,12 +52,15 @@ async def list_foods(
     if maxPrice is not None:
         query["price"] = {"$lte": float(maxPrice)}
 
-    # Filter out past dates (show today and future dates in IST)
+    # Filter out past dates for real orders, while keeping verified demo listings perpetually active
     ist_offset = timedelta(hours=5, minutes=30)
     now_ist = datetime.now(timezone.utc) + ist_offset
     start_of_today_ist = datetime(now_ist.year, now_ist.month, now_ist.day, 0, 0, 0)
     start_of_today_utc = (start_of_today_ist - ist_offset).replace(tzinfo=timezone.utc)
-    query["date"] = {"$gte": start_of_today_utc}
+    query["$or"] = [
+        {"date": {"$gte": start_of_today_utc}},
+        {"isDemo": True}
+    ]
     query["isDeleted"] = {"$ne": True}
 
     # Fetch listings from DB

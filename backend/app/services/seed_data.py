@@ -361,13 +361,6 @@ async def seed_all_foods(force: bool = False):
     Safe to run repeatedly: if force=False and listings exist, skips.
     """
     db = get_db()
-    existing_count = await db.foodlistings.count_documents({"status": "active", "isDeleted": {"$ne": True}})
-    if existing_count >= 20 and not force:
-        logger.info(f"Marketplace already has {existing_count} active listings. Skipping seed.")
-        return {"message": "Marketplace already seeded", "active_listings": existing_count}
-
-    logger.info("Seeding marketplace with Gurgaon/Sohna (15 dishes) and All India (100 dishes)...")
-    
     # 1. Base time setup (Today in IST)
     ist_offset = timedelta(hours=5, minutes=30)
     now_ist = datetime.now(timezone.utc) + ist_offset
@@ -375,6 +368,38 @@ async def seed_all_foods(force: bool = False):
     today_utc = (today_start_ist - ist_offset).replace(tzinfo=timezone.utc)
     
     password_hash = hash_password("password123")
+
+    # Ensure key demo users always exist and are verified with password123
+    demo_users = [
+        {"name": "Admin", "email": "admin@gharse.app", "role": "admin", "locality": "HQ, Gurgaon"},
+        {"name": "Aarav Mehta", "email": "aarav@gharse-demo.app", "role": "customer", "locality": "Sector 14, Gurgaon"},
+        {"name": "Anita Sharma", "email": "anita@gharse-demo.app", "role": "seller", "locality": "DLF Phase 3, Gurgaon"},
+    ]
+    for du in demo_users:
+        existing_u = await db.users.find_one({"email": du["email"]})
+        if not existing_u:
+            await db.users.insert_one({
+                "name": du["name"],
+                "email": du["email"],
+                "passwordHash": password_hash,
+                "role": du["role"],
+                "locality": du["locality"],
+                "foodPreferences": [],
+                "isVerified": True,
+                "isDemo": True,
+                "createdAt": datetime.now(timezone.utc),
+                "updatedAt": datetime.now(timezone.utc)
+            })
+        else:
+            await db.users.update_one({"_id": existing_u["_id"]}, {"$set": {"isVerified": True, "passwordHash": password_hash}})
+
+    # Always ensure existing demo listings are active and dated for today
+    await db.foodlistings.update_many({"isDemo": True}, {"$set": {"date": today_utc, "status": "active"}})
+
+    existing_count = await db.foodlistings.count_documents({"status": "active", "isDeleted": {"$ne": True}})
+    if existing_count >= 20 and not force:
+        logger.info(f"Marketplace already has {existing_count} active listings. Demo listings updated to today.")
+        return {"message": "Marketplace active listings refreshed to today", "active_listings": existing_count}
     
     # Helper to ensure cook user & verified seller profile
     async def get_or_create_seller(cook_name: str, email: str, locality: str, lat: float, lng: float):

@@ -11,12 +11,12 @@ class Settings(BaseSettings):
     DEFAULT_COMMISSION_PERCENT: int = 15
 
     # Database Connection Pool Settings
-    MONGO_MAX_POOL_SIZE: int = 50
-    MONGO_MIN_POOL_SIZE: int = 10
+    MONGO_MAX_POOL_SIZE: int = 20
+    MONGO_MIN_POOL_SIZE: int = 1
     MONGO_MAX_IDLE_TIME_MS: int = 45000
-    MONGO_WAIT_QUEUE_TIMEOUT_MS: int = 5000
-    MONGO_CONNECT_TIMEOUT_MS: int = 5000
-    MONGO_SERVER_SELECTION_TIMEOUT_MS: int = 5000
+    MONGO_WAIT_QUEUE_TIMEOUT_MS: int = 10000
+    MONGO_CONNECT_TIMEOUT_MS: int = 15000
+    MONGO_SERVER_SELECTION_TIMEOUT_MS: int = 15000
 
     # Worker Concurrency Settings
     WORKERS: int = 2

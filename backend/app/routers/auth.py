@@ -47,6 +47,9 @@ async def register(payload: RegisterRequest):
     now = datetime.now(timezone.utc)
     password_hash = hash_password(password)
 
+    # In pilot mode or when SMTP is not configured, auto-verify so users are not blocked
+    auto_verify = not bool(settings.SMTP_USER and settings.SMTP_PASSWORD)
+
     user_doc = {
         "name": name,
         "email": email,
@@ -55,7 +58,7 @@ async def register(payload: RegisterRequest):
         "locality": (payload.locality or "").strip() if payload.locality else None,
         "approximateLocation": payload.approximateLocation.dict() if payload.approximateLocation else None,
         "foodPreferences": payload.foodPreferences or [],
-        "isVerified": False,
+        "isVerified": auto_verify,
         "isDemo": False,
         "createdAt": now,
         "updatedAt": now
@@ -88,11 +91,13 @@ async def register(payload: RegisterRequest):
         sp_result = await db.sellerprofiles.insert_one(seller_profile_doc)
         seller_profile_doc["_id"] = sp_result.inserted_id
 
-    send_verification_code(email)
+    if not auto_verify:
+        send_verification_code(email)
     
     return {
-        "message": "Account created. Please verify your email.",
-        "email": email
+        "message": "Account created successfully." if auto_verify else "Account created. Please verify your email.",
+        "email": email,
+        "isVerified": auto_verify
     }
 
 @router.post("/login", response_model=AuthResponse)
@@ -115,7 +120,7 @@ async def login(payload: LoginRequest):
             detail="Invalid credentials."
         )
 
-    if user.get("isVerified") is False:
+    if user.get("isVerified") is False and (settings.SMTP_USER and settings.SMTP_PASSWORD):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Email not verified."
