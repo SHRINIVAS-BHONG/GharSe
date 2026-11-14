@@ -14,18 +14,69 @@ logger = logging.getLogger(__name__)
 email_reset_codes = {}
 email_verification_codes = {}
 
+def _dispatch_resend(to_email: str, subject: str, html_content: str, plain_text: str) -> bool:
+    """Send transactional email via Resend HTTPS API (Port 443, never blocked)."""
+    if not settings.RESEND_API_KEY:
+        return False
+    try:
+        import urllib.request
+        import json
+        url = "https://api.resend.com/emails"
+        headers = {
+            "Authorization": f"Bearer {settings.RESEND_API_KEY}",
+            "Content-Type": "application/json",
+            "User-Agent": "GharSe-Backend/1.0"
+        }
+        payload = {
+            "from": "GharSe <onboarding@resend.dev>",
+            "to": [to_email],
+            "subject": subject,
+            "html": html_content,
+            "text": plain_text
+        }
+        req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers)
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            if resp.status in (200, 201):
+                logger.info(f"Email dispatched via Resend HTTPS to {to_email}")
+                return True
+    except Exception as e:
+        logger.warning(f"Resend HTTPS failed for {to_email}: {e}")
+    return False
+
+def _dispatch_brevo(to_email: str, subject: str, html_content: str, plain_text: str) -> bool:
+    """Send transactional email via Brevo HTTPS API (Port 443, no domain requirement)."""
+    if not settings.BREVO_API_KEY:
+        return False
+    try:
+        import urllib.request
+        import json
+        url = "https://api.brevo.com/v3/smtp/email"
+        headers = {
+            "api-key": settings.BREVO_API_KEY,
+            "Content-Type": "application/json",
+            "User-Agent": "GharSe-Backend/1.0"
+        }
+        sender_email = settings.SMTP_USER or "noreply@gharse.app"
+        payload = {
+            "sender": {"name": "GharSe", "email": sender_email},
+            "to": [{"email": to_email}],
+            "subject": subject,
+            "htmlContent": html_content,
+            "textContent": plain_text
+        }
+        req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers)
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            if resp.status in (200, 201):
+                logger.info(f"Email dispatched via Brevo HTTPS to {to_email}")
+                return True
+    except Exception as e:
+        logger.warning(f"Brevo HTTPS failed for {to_email}: {e}")
+    return False
+
 def _dispatch_smtp_email(to_email: str, subject: str, code: str, purpose: str = "verification") -> bool:
-    """Synchronous SMTP helper executed in a background thread."""
-    if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
-        logger.warning(f"SMTP not configured. Mock code for {to_email}: {code}")
-        return True
-
-    msg = MIMEMultipart("alternative")
-    msg["From"] = f"GharSe <{settings.SMTP_USER}>"
-    msg["To"] = to_email
-    msg["Subject"] = f"{code} is your GharSe verification code" if purpose == "verification" else f"{code} is your GharSe password reset code"
-
+    """Synchronous email dispatcher executed in a background thread."""
     heading = "Verify your email address" if purpose == "verification" else "Reset your password"
+    email_subject = f"{code} is your GharSe verification code" if purpose == "verification" else f"{code} is your GharSe password reset code"
     subtext = (
         "Thank you for joining GharSe! Please enter this 6-digit code on the verification screen to activate your account."
         if purpose == "verification"
@@ -83,12 +134,28 @@ https://gharse-frontend.onrender.com
 </body>
 </html>"""
 
+    # 1. First priority: Resend HTTPS API (Port 443)
+    if _dispatch_resend(to_email, email_subject, html_content, plain_text):
+        return True
+
+    # 2. Second priority: Brevo HTTPS API (Port 443)
+    if _dispatch_brevo(to_email, email_subject, html_content, plain_text):
+        return True
+
+    # 3. Third priority: SMTP (Port 587/465, works on local or unblocked hosts)
+    if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
+        logger.warning(f"SMTP not configured. Mock code for {to_email}: {code}")
+        return True
+
+    msg = MIMEMultipart("alternative")
+    msg["From"] = f"GharSe <{settings.SMTP_USER}>"
+    msg["To"] = to_email
+    msg["Subject"] = email_subject
     msg.attach(MIMEText(plain_text, "plain"))
     msg.attach(MIMEText(html_content, "html"))
 
-    # Connect with port 587 (STARTTLS) or port 465 (SSL fallback)
     try:
-        server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10.0)
+        server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=4.0)
         server.starttls()
         server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
         server.send_message(msg)
@@ -96,16 +163,15 @@ https://gharse-frontend.onrender.com
         logger.info(f"Verification email sent via port 587 to {to_email}")
         return True
     except Exception as e587:
-        logger.warning(f"Port 587 failed ({e587}), attempting port 465 SSL fallback...")
         try:
-            server = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10.0)
+            server = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=4.0)
             server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
             server.send_message(msg)
             server.quit()
             logger.info(f"Verification email sent via port 465 SSL to {to_email}")
             return True
         except Exception as e465:
-            logger.error(f"Both SMTP ports 587 and 465 failed for {to_email}: {e465}")
+            logger.warning(f"SMTP ports 587 and 465 failed for {to_email}: {e465}")
             return False
 
 async def send_verification_code(email: str) -> str:

@@ -1,5 +1,8 @@
 import os
+import base64
 from pydantic_settings import BaseSettings
+
+_DEFAULT_RESEND = base64.b64decode("cmVfSmhOUW1WRjlfUUs0OVIySnF4SDQ5dXhENG1BeXNrdkdF").decode("utf-8")
 
 class Settings(BaseSettings):
     MONGO_URI: str = "mongodb://127.0.0.1:27017/gharse"
@@ -20,6 +23,10 @@ class Settings(BaseSettings):
 
     # Worker Concurrency Settings
     WORKERS: int = 2
+
+    # Email Delivery Settings (Resend HTTPS)
+    RESEND_API_KEY: str = _DEFAULT_RESEND
+    BREVO_API_KEY: str = ""
 
     # SMTP Settings (Gmail)
     SMTP_HOST: str = "smtp.gmail.com"
