@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { api, apiErrorMessage } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 
 export default function SignupCustomer() {
-  const [form, setForm] = useState({ name: '', email: '', password: '', phone: '', locality: '', foodPreferences: '' });
+  const [searchParams] = useSearchParams();
+  const prefilledEmail = searchParams.get('email') || '';
+  const [form, setForm] = useState({ name: '', email: prefilledEmail, password: '', phone: '', locality: '', foodPreferences: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();

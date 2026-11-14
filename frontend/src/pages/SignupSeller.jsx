@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { api, apiErrorMessage } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 
 export default function SignupSeller() {
+  const [searchParams] = useSearchParams();
+  const prefilledEmail = searchParams.get('email') || '';
   const [form, setForm] = useState({
-    name: '', email: '', password: '', phone: '', locality: '',
+    name: '', email: prefilledEmail, password: '', phone: '', locality: '',
     deliveryRadiusKm: '2', pickupAvailable: true, deliveryAvailable: false,
     categories: '', bio: '',
   });

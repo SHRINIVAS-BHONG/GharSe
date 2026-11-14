@@ -146,6 +146,13 @@ export default function Navbar({ onOpenInvestorModal }) {
                 >
                   Log in
                 </Link>
+
+                <Link
+                  to="/signup/customer"
+                  className="px-3.5 py-1.5 rounded-full border border-tulsi text-tulsi text-xs font-semibold hover:bg-tulsi hover:text-ivory transition"
+                >
+                  Sign up
+                </Link>
               </>
             ) : (
               <div className="flex items-center gap-3 text-xs">
@@ -217,19 +224,26 @@ export default function Navbar({ onOpenInvestorModal }) {
             Browse
           </Link>
           
-          <div className="pt-3 border-t border-marigold-light/40 flex items-center justify-between gap-3">
+          <div className="pt-3 border-t border-marigold-light/40 flex items-center justify-between gap-2">
             <button
               onClick={() => scrollToAnchor('waitlist')}
               className="flex-1 py-2 rounded-full bg-marigold text-ink font-bold text-xs text-center"
             >
-              Join Waitlist
+              Waitlist
             </button>
             <Link
               to="/login"
               onClick={() => setMobileMenuOpen(false)}
-              className="px-4 py-2 rounded-full border border-clay/30 text-clay text-xs font-medium text-center"
+              className="px-3.5 py-2 rounded-full border border-clay/30 text-clay text-xs font-medium text-center"
             >
               Log in
+            </Link>
+            <Link
+              to="/signup/customer"
+              onClick={() => setMobileMenuOpen(false)}
+              className="px-3.5 py-2 rounded-full bg-tulsi text-ivory text-xs font-semibold text-center"
+            >
+              Sign up
             </Link>
           </div>
         </div>

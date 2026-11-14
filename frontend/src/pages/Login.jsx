@@ -58,30 +58,41 @@ export default function Login() {
           />
         </div>
         <div className="text-right mt-1">
-          <Link to="/forgot-password" className="text-sm text-marigold-dark font-medium">Forgot Password?</Link>
+          <Link to="/forgot-password" className="text-sm text-marigold-dark font-medium hover:underline">Forgot Password?</Link>
         </div>
-        {error && <p className="text-red-700 text-sm">{error}</p>}
+        {error && (
+          <div className="p-3.5 rounded-xl bg-amber-50/90 border border-amber-200 text-sm">
+            <p className="text-amber-900 font-medium">{error}</p>
+            {(error.toLowerCase().includes('sign up') || error.toLowerCase().includes('not found') || error.toLowerCase().includes('no account') || error.toLowerCase().includes('invalid')) && (
+              <div className="mt-2.5 pt-2 border-t border-amber-200/60 flex items-center justify-between">
+                <span className="text-xs text-amber-800">Don't have an account yet?</span>
+                <Link
+                  to={`/signup/customer?email=${encodeURIComponent(email)}`}
+                  className="text-xs font-semibold px-3 py-1 rounded-full bg-marigold text-ink hover:bg-marigold-dark transition"
+                >
+                  Sign Up as Customer &rarr;
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
         <button
           disabled={loading}
-          className="w-full py-3 rounded-full bg-tulsi text-ivory font-medium hover:bg-tulsi-dark transition disabled:opacity-60"
+          className="w-full py-3 rounded-full bg-tulsi text-ivory font-medium hover:bg-tulsi-dark transition disabled:opacity-60 cursor-pointer"
         >
           {loading ? 'Logging in...' : 'Log in'}
         </button>
       </form>
       <p className="text-sm text-clay mt-5">
         New here?{' '}
-        <Link to="/signup/customer" className="text-marigold-dark font-medium">
+        <Link to={`/signup/customer?email=${encodeURIComponent(email)}`} className="text-marigold-dark font-medium hover:underline">
           Sign up as a customer
         </Link>{' '}
         or{' '}
-        <Link to="/signup/seller" className="text-marigold-dark font-medium">
+        <Link to={`/signup/seller?email=${encodeURIComponent(email)}`} className="text-marigold-dark font-medium hover:underline">
           become a home cook
         </Link>
         .
-      </p>
-      <p className="text-xs text-clay mt-6">
-        Demo accounts (password: password123) — admin@gharse.app, anita@gharse-demo.app (seller),
-        aarav@gharse-demo.app (customer).
       </p>
     </div>
   );

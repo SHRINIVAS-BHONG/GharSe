@@ -130,8 +130,8 @@ async def login(payload: LoginRequest):
 
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials."
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No account found with this email. Please sign up first."
         )
 
     if user.get("isVerified") is False and (settings.SMTP_USER and settings.SMTP_PASSWORD):
@@ -143,7 +143,7 @@ async def login(payload: LoginRequest):
     if not verify_password(password, user.get("passwordHash", "")):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials."
+            detail="Incorrect password. Please try again or click Forgot Password."
         )
 
     seller_profile = None
