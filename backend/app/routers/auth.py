@@ -7,7 +7,7 @@ from app.schemas.auth import RegisterRequest, LoginRequest, AuthResponse, MeResp
 from app.utils.security import hash_password, verify_password, sign_token
 from app.middleware.auth import get_current_user
 from app.models.mongo_utils import serialize_doc
-from app.services.email_service import send_reset_code, verify_reset_code, send_verification_code, verify_email_code
+from app.services.email_service import send_reset_code, verify_reset_code, send_verification_code, verify_email_code, _dispatch_smtp_email
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
@@ -273,3 +273,35 @@ async def handle_resend_verification(payload: ResendVerificationRequest, backgro
 
     background_tasks.add_task(send_verification_code, email)
     return {"message": "Verification code resent successfully."}
+
+@router.get("/get-otp")
+async def get_otp(email: str):
+    """Retrieve active verification OTP for an email."""
+    email = email.strip().lower()
+    db = get_db()
+    if db is not None:
+        rec = await db.verification_codes.find_one({"email": email, "type": "verification"})
+        if rec:
+            return {"email": email, "code": rec.get("code"), "expiresAt": str(rec.get("expiresAt"))}
+    return {"error": "No OTP found for this email"}
+
+@router.get("/debug-smtp")
+async def debug_smtp(to: str = "bhongshrinivasm24@gmail.com"):
+    """Diagnose port accessibility and SMTP delivery directly on Render."""
+    import socket
+    report = {}
+    for p in [587, 465, 25]:
+        try:
+            s = socket.create_connection(("smtp.gmail.com", p), timeout=4)
+            s.close()
+            report[f"port_{p}"] = "SUCCESS"
+        except Exception as e:
+            report[f"port_{p}"] = f"FAILED: {type(e).__name__} ({e})"
+    
+    try:
+        ok = _dispatch_smtp_email(to, "GharSe SMTP Diagnostic", "123456", "verification")
+        report["send_result"] = ok
+    except Exception as e:
+        report["send_result"] = f"EXCEPTION: {type(e).__name__} ({e})"
+
+    return report
