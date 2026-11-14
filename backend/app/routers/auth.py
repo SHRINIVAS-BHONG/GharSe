@@ -99,12 +99,14 @@ async def register(payload: RegisterRequest, background_tasks: BackgroundTasks):
             sp_result = await db.sellerprofiles.insert_one(seller_profile_doc)
             seller_profile_doc["_id"] = sp_result.inserted_id
 
+        code = None
         if not auto_verify:
-            background_tasks.add_task(send_verification_code, email)
+            code = await send_verification_code(email)
         
         return {
             "message": "Account created successfully." if auto_verify else "Account created. Please verify your email.",
             "email": email,
+            "code": code,
             "isVerified": auto_verify
         }
     except HTTPException:
@@ -186,8 +188,8 @@ async def handle_send_email(payload: SendEmailRequest, background_tasks: Backgro
     if not user:
         raise HTTPException(status_code=404, detail="User not found with this email.")
         
-    background_tasks.add_task(send_reset_code, email)
-    return {"message": "Reset code sent successfully. Please check your email inbox."}
+    code = await send_reset_code(email)
+    return {"message": "Reset code sent successfully. Please check your email inbox.", "code": code}
 
 @router.post("/forgot-password/reset")
 async def handle_reset_password(payload: ResetEmailPasswordRequest):
@@ -271,8 +273,8 @@ async def handle_resend_verification(payload: ResendVerificationRequest, backgro
     if user.get("isVerified"):
         return {"message": "Email is already verified."}
 
-    background_tasks.add_task(send_verification_code, email)
-    return {"message": "Verification code resent successfully."}
+    code = await send_verification_code(email)
+    return {"message": "Verification code resent successfully.", "code": code}
 
 @router.get("/get-otp")
 async def get_otp(email: str):

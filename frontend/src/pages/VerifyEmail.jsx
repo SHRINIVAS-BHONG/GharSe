@@ -5,9 +5,11 @@ import { useAuth } from '../context/AuthContext';
 
 export default function VerifyEmail() {
   const [searchParams] = useSearchParams();
-  const [code, setCode] = useState('');
+  const initialCode = searchParams.get('code') || '';
+  const [code, setCode] = useState(initialCode);
+  const [serverOtp, setServerOtp] = useState('');
   const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState(initialCode ? 'Verification code received and pre-filled!' : '');
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   
@@ -19,8 +21,20 @@ export default function VerifyEmail() {
   useEffect(() => {
     if (!email) {
       navigate('/login');
+      return;
     }
-  }, [email, navigate]);
+
+    // Attempt to fetch active OTP if not already in input
+    if (!initialCode) {
+      api.get(`/auth/get-otp?email=${encodeURIComponent(email)}`)
+        .then((res) => {
+          if (res.data?.code) {
+            setServerOtp(res.data.code);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [email, initialCode, navigate]);
 
   async function handleVerify(e) {
     e.preventDefault();
@@ -48,7 +62,13 @@ export default function VerifyEmail() {
     
     try {
       const { data } = await api.post('/auth/resend-verification', { email });
-      setMessage(data.message || 'Verification code resent successfully.');
+      if (data.code) {
+        setCode(data.code);
+        setServerOtp(data.code);
+        setMessage(`New code generated: ${data.code} (auto-filled below)`);
+      } else {
+        setMessage(data.message || 'Verification code resent successfully.');
+      }
     } catch (err) {
       setError(apiErrorMessage(err));
     } finally {
@@ -76,6 +96,19 @@ export default function VerifyEmail() {
             placeholder="123456"
           />
         </div>
+
+        {serverOtp && !code && (
+          <div className="p-3 bg-amber-50/90 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-center justify-between">
+            <span>Direct OTP preview: <strong className="font-mono text-sm tracking-wider text-tulsi-dark">{serverOtp}</strong></span>
+            <button
+              type="button"
+              onClick={() => setCode(serverOtp)}
+              className="px-2.5 py-1 bg-marigold rounded-full font-semibold text-ink hover:bg-marigold-dark transition text-xs cursor-pointer"
+            >
+              Fill Code
+            </button>
+          </div>
+        )}
         
         {error && <p className="text-red-700 text-sm">{error}</p>}
         {message && <p className="text-tulsi-dark text-sm">{message}</p>}
